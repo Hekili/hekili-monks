@@ -1,5 +1,5 @@
 -- Monk.lua
--- Testing modularization of class modules.
+-- Testing modularization of classes.
 -- October 2016
 
 
@@ -55,7 +55,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
 
         addResource( 'energy', true )
         addResource( 'chi' )
-        
+
         addTalent( 'ascension', 115396 )
         addTalent( 'black_ox_brew', 115399 )
         addTalent( 'blackout_combo', 196736 )
@@ -145,7 +145,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addGearSet( 'fu_zan_the_wanderers_companion', 128938 )
 
 
-        addHook( 'specializationChanged', function ()            
+        addHook( 'specializationChanged', function ()
             setPotion( 'prolonged_power' )
             setRole( state.spec.brewmaster and 'tank' or 'attack' )
         end )
@@ -359,7 +359,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         modifyAbility( 'breath_of_fire', 'cooldown', function( x )
             if buff.blackout_combo.up then
                 return x - 6
-            end 
+            end
             return x
         end )
 
@@ -378,7 +378,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cooldown = 30,
             known = function () return talent.chi_burst.enabled end
         } )
-        
+
         modifyAbility( 'chi_burst', 'cast', function( x )
             return x * haste
         end )
@@ -431,7 +431,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addAbility( 'dampen_harm', {
             id = 122278,
             spend = 0,
-            spend_type = 'energy', 
+            spend_type = 'energy',
             cast = 0,
             gcdType = 'off',
             cooldown = 120,
@@ -548,7 +548,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             if artifact.fortification.enabled then applyBuff( 'fortification', 21 ) end
             if artifact.swift_as_a_coursing_river.enabled then addStack( 'swift_as_a_coursing_river', 15, 1 ) end
             health.max = health.max * 1.2
-            health.current = health.current * 1.2 
+            health.current = health.current * 1.2
         end )
 
 
@@ -603,7 +603,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addAbility( 'keg_smash', {
             id = 121253,
             spend = 40,
-            spend_type = 'energy', 
+            spend_type = 'energy',
             cast = 0,
             gcdType = 'melee',
             cooldown = 8,
@@ -744,7 +744,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         } )
 
         modifyAbility( 'roll', 'charges', function( x )
-            return x + ( talent.celerity.enabled and 1 or 0 ) 
+            return x + ( talent.celerity.enabled and 1 or 0 )
         end )
 
         modifyAbility( 'roll', 'cooldown', function( x )
@@ -802,7 +802,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
 
         addCastExclusion( 'serenity' )
 
-        
+
         addAbility( 'spear_hand_strike', {
             id = 116705,
             spend = 0,
@@ -892,7 +892,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
 
 
         addAbility( 'tiger_palm', {
-            id = 100780,           
+            id = 100780,
             spend = 50,
             spend_type = 'energy',
             cast = 0,
@@ -934,7 +934,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
                 cooldown.fortifying_brew.expires = max( state.time, cooldown.fortifying_brew.expires - 1 )
                 removeBuff( 'blackout_combo' )
             end
-            
+
         end )
 
 
@@ -971,7 +971,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addAbility( 'whirling_dragon_punch', {
             id = 152175,
             spend = 0,
-            spend_type = 'energy', 
+            spend_type = 'energy',
             cast = 0,
             gcdType = 'melee',
             cooldown = 24,
@@ -1038,5 +1038,3 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
     Hekili:ReInitialize()
 
 end
-
-
