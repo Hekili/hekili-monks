@@ -1,0 +1,9 @@
+## Interface: 70100 
+## Version: 7.1.0
+## Title: Hekili_Monk
+## Author: Hekili
+## Notes: Windwalker Monk for Hekili Addon.  Packaged separately from core addon.
+## RequiredDeps: Hekili
+## OptionalDeps: Masque, SpellFlash, SpellFlashCore, WeakAuras
+
+Monk.lua
