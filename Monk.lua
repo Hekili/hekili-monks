@@ -87,13 +87,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addTalent( 'special_delivery', 196730 )
         addTalent( 'summon_black_ox_statue', 115315 )
         addTalent( 'whirling_dragon_punch', 152175 )
-
-        if not PTR then
-            addTalent( 'diffuse_magic', 122783 )
-            addTalent( 'dizzying_kicks', 196722 )
-        else
-            addTalent( 'mystic_vitality', 237076 )            
-        end
+        addTalent( 'mystic_vitality', 237076 )            
 
 
         -- Buffs/Debuffs
@@ -128,7 +122,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addAura( 'storm_earth_and_fire', 137639, 'duration', 15 )
         addAura( 'strike_of_the_windlord', 205320, 'duration', 6 )
         addAura( 'swift_as_a_coursing_river', 213177, 'duration', 15, 'max_stack', 5 )
-        if PTR then addAura( 'the_emperors_capacitor', 235054, 'duration', 30, 'max_stack', 20 ) end
+        addAura( 'the_emperors_capacitor', 235054, 'duration', 30, 'max_stack', 20 )
         addAura( 'tigers_lust', 116841, 'duration', 6 )
         addAura( 'touch_of_death', 115080, 'duration', 8 )
         addAura( 'transfer_the_power', 195321, 'duration', 30, 'max_stack', 10 )
@@ -176,8 +170,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addGearSet( 'prydaz_xavarics_magnum_opus', 132444 )
         addGearSet( 'salsalabims_lost_tunic', 137016 )
         addGearSet( 'sephuzs_secret', 132452 )
-
-        if PTR then addGearSet( 'the_emperors_capacitor', 144239 ) end
+        addGearSet( 'the_emperors_capacitor', 144239 )
 
 
         addHook( 'specializationChanged', function ()
@@ -200,10 +193,8 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
                 state.buff.storm_earth_and_fire.expires = state.buff.storm_earth_and_fire.expires + 1
             end
 
-            if PTR then 
-                if state.equipped.the_emperors_capacitor and resource == 'chi' then
-                    state.addStack( 'the_emperors_capacitor', 30, 1 )
-                end
+            if state.equipped.the_emperors_capacitor and resource == 'chi' then
+                state.addStack( 'the_emperors_capacitor', 30, 1 )
             end
         end )
 
@@ -531,7 +522,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
 
         addHandler( 'breath_of_fire', function ()
             if debuff.keg_smash.up then applyDebuff( 'target', 'breath_of_fire', 8 ) end
-            if equipped.firestone_walkers then setCooldown( 'fortifying_brew', max( 0, cooldown.fortifying_brew.remains - ( min( PTR and 6 or 4, active_enemies * ( PTR and 2 or 1 ) ) ) ) ) end
+            if equipped.firestone_walkers then setCooldown( 'fortifying_brew', max( 0, cooldown.fortifying_brew.remains - ( min( 6, active_enemies * 2 ) ) ) ) end
             -- cooldown.fortifying_brew.expires = max( state.query_time, cooldown.fortifying_brew.expires - 4 + ( buff.blackout_combo.up and 2 or 0 ) )
             removeBuff( 'blackout_combo' )
         end )
@@ -589,7 +580,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         } )
 
         addHandler( 'crackling_jade_lightning', function ()
-            if PTR then removeBuff( 'the_emperors_capacitor' ) end
+            removeBuff( 'the_emperors_capacitor' )
             if talent.hit_combo.enabled then
                 if prev_gcd.crackling_jade_lightning then removeBuff( 'hit_combo' )
                 else addStack( 'hit_combo', 10, 1 ) end
@@ -608,7 +599,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         } )
 
         addHandler( 'dampen_harm', function ()
-            applyBuff( 'dampen_harm', 45, PTR and 3 or nil )
+            applyBuff( 'dampen_harm', 45, 3 )
         end )
 
         
@@ -619,7 +610,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 0,
             gcdType = 'off',
             cooldown = 90,
-            known = function () if PTR then return spec.windwalker else return talent.diffuse_magic.enabled end end,
+            known = function () return spec.windwalker or talent.diffuse_magic.enabled end,
         } )
 
         addHandler( 'diffuse_magic', function ()
@@ -934,10 +925,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         end )
 
         addHandler( 'rising_sun_kick', function ()
-            if PTR then
-                active_dot.mark_of_the_crane = min( active_enemies, active_dot.mark_of_the_crane + 5 )
-                applyDebuff( 'target', 'mark_of_the_crane', 15 )
-            end
+            applyDebuff( 'target', 'mark_of_the_crane', 15 )
 
             if talent.hit_combo.enabled then
                 if prev_gcd.rising_sun_kick then removeBuff( 'hit_combo' )
@@ -997,8 +985,8 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addHandler( 'rushing_jade_wind', function ()
             applyBuff( 'rushing_jade_wind', 6 * haste )
             
-            if PTR and spec.windwalker then
-                active_dot.mark_of_the_crane = min( active_enemies, active_dot.mark_of_the_crane + 5 )
+            if spec.windwalker then
+                active_dot.mark_of_the_crane = min( active_enemies, active_dot.mark_of_the_crane + 4 )
                 applyDebuff( 'target', 'mark_of_the_crane', 15 )
             end
 
@@ -1164,7 +1152,6 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             end
 
             if spec.windwalker then
-                if not debuff.mark_of_the_crane.up then active_dot.mark_f_the_crane = active_dot.mark_of_the_crane + 1 end
                 applyDebuff( 'target', 'mark_of_the_crane', 15 )
 
                 if talent.hit_combo.enabled then
