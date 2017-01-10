@@ -41,8 +41,12 @@ local setPotion = Retrieve( 'setPotion' )
 local setRole = Retrieve( 'setRole' )
 
 local RegisterEvent = Retrieve( 'RegisterEvent' )
+
+local retireDefaults = Retrieve( 'retireDefaults' )
 local storeDefault = Retrieve( 'storeDefault' )
 
+
+local PTR = Retrieve( 'PTR' )
 
 
 if select( 2, UnitClass( 'player' ) ) == 'MONK' then
@@ -65,8 +69,6 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addTalent( 'chi_torpedo', 115008 )
         addTalent( 'chi_wave', 115098 )
         addTalent( 'dampen_harm', 122278 )
-        addTalent( 'diffuse_magic', 122783 )
-        addTalent( 'dizzying_kicks', 196722 )
         addTalent( 'elusive_dance', 196738 )
         addTalent( 'energizing_elixir', 115288 )
         addTalent( 'eye_of_the_tiger', 196607 )
@@ -85,6 +87,13 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addTalent( 'special_delivery', 196730 )
         addTalent( 'summon_black_ox_statue', 115315 )
         addTalent( 'whirling_dragon_punch', 152175 )
+
+        if not PTR then
+            addTalent( 'diffuse_magic', 122783 )
+            addTalent( 'dizzying_kicks', 196722 )
+        else
+            addTalent( 'mystic_vitality', 237076 )            
+        end
 
 
         -- Buffs/Debuffs
@@ -119,6 +128,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addAura( 'storm_earth_and_fire', 137639, 'duration', 15 )
         addAura( 'strike_of_the_windlord', 205320, 'duration', 6 )
         addAura( 'swift_as_a_coursing_river', 213177, 'duration', 15, 'max_stack', 5 )
+        if PTR then addAura( 'the_emperors_capacitor', 235054, 'duration', 30, 'max_stack', 20 ) end
         addAura( 'tigers_lust', 116841, 'duration', 6 )
         addAura( 'touch_of_death', 115080, 'duration', 8 )
         addAura( 'transfer_the_power', 195321, 'duration', 30, 'max_stack', 10 )
@@ -133,6 +143,14 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             end
             return x
         end )
+
+        --[[ addHook( 'advance_bonus_cdr', function( x )
+            if state.buff.serenity.up then
+                return min( x, state.buff.serenity.remains )
+            end
+
+            return 0
+        end ) ]]
 
 
         -- Fake Buffs.
@@ -159,6 +177,8 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addGearSet( 'salsalabims_lost_tunic', 137016 )
         addGearSet( 'sephuzs_secret', 132452 )
 
+        if PTR then addGearSet( 'the_emperors_capacitor', 144239 ) end
+
 
         addHook( 'specializationChanged', function ()
             setPotion( 'prolonged_power' )
@@ -172,11 +192,18 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
                 state.prev_gcd.last = 'none'
             end
             rawset( state.healing_sphere, 'count', nil )
+            state.stagger.amount = nil
         end )
 
         addHook( 'spend', function( amt, resource )
             if state.equipped.drinking_horn_cover and resource == 'chi' and state.buff.storm_earth_and_fire.up then
                 state.buff.storm_earth_and_fire.expires = state.buff.storm_earth_and_fire.expires + 1
+            end
+
+            if PTR then 
+                if state.equipped.the_emperors_capacitor and resource == 'chi' then
+                    state.addStack( 'the_emperors_capacitor', 30, 1 )
+                end
             end
         end )
 
@@ -288,7 +315,8 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
                     return math.floor( stagger.remains / 0.5 )
 
                 elseif k == 'amount' then
-                    return UnitStagger( 'player' )
+                    t[k] = UnitStagger( 'player' )
+                    return t[k]
 
                 elseif k == 'incoming_per_second' then
                     return avg_stagger_ps_in_last( 10 )
@@ -302,12 +330,15 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
                 elseif k == 'percent_remains' then
                     return total_staggered > 0 and ( 100 * state.stagger.amount / stagger_in_last( 10 ) ) or 0
 
+                elseif k == 'total' then
+                    return total_staggered
+
                 elseif k == 'dump' then
                     DevTools_Dump( staggered_damage )
 
                 end
 
-                return stagger[ k ]
+                return nil
 
             end } )
 
@@ -433,6 +464,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 0,
             gcdType = 'melee',
             cooldown = 0,
+            cycle = 'mark_of_the_crane'
         } )
 
         modifyAbility( 'blackout_kick', 'spend', function( x )
@@ -447,6 +479,10 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             end
 
             applyDebuff( 'target', 'mark_of_the_crane', 15 )
+            
+            if talent.dizzying_kicks.enbled then
+                applyDebuff( 'target', 'dizzying_kicks', 3 )
+            end
 
             if talent.hit_combo.enabled then
                 if prev_gcd.blackout_kick then removeBuff( 'hit_combo' )
@@ -483,6 +519,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 0,
             gcdType = 'melee',
             cooldown = 15,
+            cycle = 'breath_of_fire'
         } )
 
         modifyAbility( 'breath_of_fire', 'cooldown', function( x )
@@ -494,8 +531,8 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
 
         addHandler( 'breath_of_fire', function ()
             if debuff.keg_smash.up then applyDebuff( 'target', 'breath_of_fire', 8 ) end
-            if equipped.firestone_walkers then setCooldown( 'fortifying_brew', max( 0, cooldown.fortifying_brew.remains - ( min( 4, active_enemies ) ) ) ) end
-            cooldown.fortifying_brew.expires = max( state.time, cooldown.fortifying_brew.expires - 4 + ( buff.blackout_combo.up and 2 or 0 ) )
+            if equipped.firestone_walkers then setCooldown( 'fortifying_brew', max( 0, cooldown.fortifying_brew.remains - ( min( PTR and 6 or 4, active_enemies * ( PTR and 2 or 1 ) ) ) ) ) end
+            -- cooldown.fortifying_brew.expires = max( state.query_time, cooldown.fortifying_brew.expires - 4 + ( buff.blackout_combo.up and 2 or 0 ) )
             removeBuff( 'blackout_combo' )
         end )
 
@@ -552,6 +589,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         } )
 
         addHandler( 'crackling_jade_lightning', function ()
+            if PTR then removeBuff( 'the_emperors_capacitor' ) end
             if talent.hit_combo.enabled then
                 if prev_gcd.crackling_jade_lightning then removeBuff( 'hit_combo' )
                 else addStack( 'hit_combo', 10, 1 ) end
@@ -570,7 +608,22 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         } )
 
         addHandler( 'dampen_harm', function ()
-            applyBuff( 'dampen_harm', 45, 3 )
+            applyBuff( 'dampen_harm', 45, PTR and 3 or nil )
+        end )
+
+        
+        addAbility( 'diffuse_magic', {
+            id = 122783,
+            spend = 0,
+            spend_type = 'energy',
+            cast = 0,
+            gcdType = 'off',
+            cooldown = 90,
+            known = function () if PTR then return spec.windwalker else return talent.diffuse_magic.enabled end end,
+        } )
+
+        addHandler( 'diffuse_magic', function ()
+            applyBuff( 'diffuse_magic', 6 )
         end )
 
 
@@ -649,7 +702,9 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         end )
 
         modifyAbility( 'fists_of_fury', 'cooldown', function( x )
-            if buff.serenity.up then x = x / 2 end
+            if buff.serenity.up then
+                x = max( 0, x - ( buff.serenity.remains / 2 ) )
+            end
             return x * haste
         end )
 
@@ -727,7 +782,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         } )
 
         addHandler( 'invoke_xuen', function ()
-            summonPet( 'xuen' )
+            summonPet( 'xuen', 45 )
         end )
 
 
@@ -738,6 +793,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 0,
             gcdType = 'melee',
             cooldown = 8,
+            cycle = 'keg_smash'
         } )
 
         modifyAbility( 'keg_smash', 'cooldown', function( x )
@@ -844,6 +900,17 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         end )
 
 
+        addAbility( 'ring_of_peace', {
+            id = 116844,
+            spend = 0,
+            spend_type = 'energy',
+            cast = 0,
+            gcdType = 'spell',
+            cooldown = 45,
+            known = function () return talent.ring_of_peace.enabled end,
+        } )
+
+
         addAbility( 'rising_sun_kick', {
             id = 107428,
             spend = 2,
@@ -851,10 +918,13 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 0,
             gcdType = 'melee',
             cooldown = 10,
+            cycle = 'mark_of_the_crane'
         } )
 
         modifyAbility( 'rising_sun_kick', 'cooldown', function( x )
-            if buff.serenity.up then return x * haste * 0.5 end
+            if buff.serenity.up then
+                x = max( 0, x - ( buff.serenity.remains / 2 ) )
+            end
             return x * haste
         end )
 
@@ -864,7 +934,10 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         end )
 
         addHandler( 'rising_sun_kick', function ()
-            applyDebuff( 'target', 'mark_of_the_crane', 15 )
+            if PTR then
+                active_dot.mark_of_the_crane = min( active_enemies, active_dot.mark_of_the_crane + 5 )
+                applyDebuff( 'target', 'mark_of_the_crane', 15 )
+            end
 
             if talent.hit_combo.enabled then
                 if prev_gcd.rising_sun_kick then removeBuff( 'hit_combo' )
@@ -905,11 +978,14 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 0,
             gcdType = 'spell',
             cooldown = 6,
-            known = function () return talent.rushing_jade_wind.enabled end
+            known = function () return talent.rushing_jade_wind.enabled end,
+            cycle = 'mark_of_the_crane'
         } )
 
         modifyAbility( 'rushing_jade_wind', 'cooldown', function( x )
-            if buff.serenity.up then x = x / 2 end
+            if buff.serenity.up then
+                x = max( 0, x - ( buff.serenity.remains / 2 ) )
+            end
             return x * haste
         end )
 
@@ -920,6 +996,12 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
 
         addHandler( 'rushing_jade_wind', function ()
             applyBuff( 'rushing_jade_wind', 6 * haste )
+            
+            if PTR and spec.windwalker then
+                active_dot.mark_of_the_crane = min( active_enemies, active_dot.mark_of_the_crane + 5 )
+                applyDebuff( 'target', 'mark_of_the_crane', 15 )
+            end
+
             if talent.hit_combo.enabled then
                 if prev_gcd.rushing_jade_wind then removeBuff( 'hit_combo' )
                 else addStack( 'hit_combo', 10, 1 ) end
@@ -940,6 +1022,10 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
 
         addHandler( 'serenity', function ()
             applyBuff( 'serenity', 8 )
+            setCooldown( 'strike_of_the_windlord', cooldown.strike_of_the_windlord.remains - ( max( 8, cooldown.strike_of_the_windlord.remains / 2 ) ) )
+            setCooldown( 'fists_of_fury', cooldown.fists_of_fury.remains - ( max( 8, cooldown.fists_of_fury.remains / 2 ) ) )
+            setCooldown( 'rising_sun_kick', cooldown.rising_sun_kick.remains - ( max( 8, cooldown.rising_sun_kick.remains / 2 ) ) )
+            setCooldown( 'rushing_jade_wind', cooldown.rushing_jade_wind.remains - ( max( 8, cooldown.rushing_jade_wind.remains / 2 ) ) )            
         end )
 
         addCastExclusion( 'serenity' )
@@ -1015,7 +1101,9 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         } )
 
         modifyAbility( 'strike_of_the_windlord', 'cooldown', function( x )
-            if buff.serenity.up then return x * 0.5 end
+            if buff.serenity.up then
+                x = max( 0, x - ( buff.serenity.remains / 2 ) )
+            end
             return x
         end )
 
@@ -1033,6 +1121,21 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         end )
 
 
+        addAbility( 'summon_black_ox_statue', {
+            id = 115315,
+            spend = 0,
+            spend_type = 'energy',
+            cast = 0,
+            gcdType = 'spell',
+            cooldown = 10,
+            known = function () return talent.summon_black_ox_statue.enabled end,
+        } )
+
+        addHandler( 'summon_black_ox_statue', function ()
+            summonTotem( 'black_ox_statue', 'statue', 900 )
+        end )
+
+
         addAbility( 'tiger_palm', {
             id = 100780,
             spend = 50,
@@ -1040,7 +1143,8 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 0,
             gcdType = 'melee',
             ready = 50,
-            cooldown = 0
+            cooldown = 0,
+            cycle = 'mark_of_the_crane'
         } )
 
         modifyAbility( 'tiger_palm', 'spend', function( x )
@@ -1060,6 +1164,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             end
 
             if spec.windwalker then
+                if not debuff.mark_of_the_crane.up then active_dot.mark_f_the_crane = active_dot.mark_of_the_crane + 1 end
                 applyDebuff( 'target', 'mark_of_the_crane', 15 )
 
                 if talent.hit_combo.enabled then
@@ -1102,7 +1207,8 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 0,
             gcdType = 'spell',
             cooldown = 120,
-            toggle = 'cooldowns'
+            toggle = 'cooldowns',
+            cycle = 'touch_of_death'
         } )
 
         modifyAbility( 'touch_of_death', 'cooldown', function( x )
@@ -1168,40 +1274,40 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
     end
 
 
-    storeDefault( [[SimC Import: default]], 'actionLists', 20161206.1, [[dKtriaGEcuAtuODr02ukntOunBiZNs8ncv7ei7L0UfTFPYOKIggH8BvTmOWqHsPgSuA4svhKGoLu4ya6CeOAHeklLIYIPulh0IqOEQIhRKNJ0ejqXuritwIPt1fPO6WQCzuxxP6zeW5bQnJOtl8xj9DemnaY8ukgjuk51uWOHIUnuDsa8zkPRbLI7rroebYdHswha1kqLiDmppBexuX0rWWK3oYvX0z65vCOqWEE8PccJTcUoMXi(OSccdra3ceOaIKa1zwWO31rhHlp(KQePGaQePJ55zJ4IkMoZcg9Uo(B1kILr6meU37uDeAhOWbRdTNpyfZllvQdddSoaKLyD(d1j)K1XmgXhLvqyic4wGIlfjGoGoCwNPNpyxl26Ysx74WWaRUccdLiDmppBexuX0zwWO31XFRwrSC9pQ8esQXM27KKskd5mCWY9ElwS3jjLu)H4v(GoM1llvYaYY9ElwAki)qC6skd5mCWsopBexm6WinWUSh(l5znqHdwU33WIf7DssPn6)cAN6Y9Elw8dALDPh4C1)Aj4nM2kQHocHwP6KhoB6rLkHdQJq7afoyD6Fp(uhaYsSo)H6KFY6ygJ4JYkimebClqXLIeqhqhoRd2(94t1vqcOePJ55zJ4IkMoZcg9Uon9dXPlPmKZWbl58SrCX46Fu5jKskd5mCWsiJFrs3ysudJnBEqpiVLlPommW1NS6yYvcrwqpSi58SrCX46Fu5jKsQdddC9jRoMCLqKf0dlsiJFrs3yciGmU(hvEcPeg0iTwP7z1qSmiHm(fjDJja1WIf7DssjLHCgoy5EFdDecTs1jpC2eXtGJvxla49p0bCxlLHCgoyI1rODGchSoRdHQ3YJpROG66aqwI15puN8twhZyeFuwbHHiGBbkUuKa6a6WzDW6qOUwHlp(SRf7b1vxbbiLiDmppBexuX0zwWO31rq(H40LugYz4GLCE2iUySzZd6b5TCj1HHbU(KvhtUsiYc6HfjNNnIlgx)JkpHusDyyGRpz1XKReISGEyrcz8ls6gtabKX1)OYtiLKb1P1NSsUdblHm(fjDJPTgx)JkpHucdAKwR09SAiwgKqg)IKUX02gwSyVtskP(dXR8bDmRxwQKbKL79n0ri0kvN8WztepbowDTaG3)qhWDTuMKyDeAhOWbRZ6qO6T84ZkkOUoaKLyD(d1j)K1XmgXhLvqyic4wGIlfjGoGoCwhSoeQRv4YJp7AXEq9U2MaBOUccBuI0X88SrCrftNzbJExNM(H40LugYz4GLCE2iUyC9pQ8esjLHCgoyjKXViPBmjQHXMc6GEqElxsDyyGRpz1XKReISGEyrY5zJ4IX1)OYtiLuhgg46twDm5kHilOhwKqg)IKUbiGmU(hvEcPKmOoT(KvYDiyjKXViPBmbeBmU(hvEcPeg0iTwP7z1qSmiHm(fjDJ4nSyXENKusziNHdwU3RJqOvQo5HZMiEcCS6AbaV)HoG7APmKZWbtSocTdu4G1zDiu9wE8zffuxhaYsSo)H6KFY6ygJ4JYkimebClqXLIeqhqhoRdwhc11kC5XNDTypOExBtmAOUcARsKoMNNnIlQy6mly076ii)qC6skd5mCWsopBexm2SPGoOhK3YLuhgg46twDm5kHilOhwKCE2iUyC9pQ8esjzqDA9jRK7qWsiJFrs3ysWnU(hvEcPeg0iTwP7z1qSmiHm(fjDJjSPHfl27KKsQ)q8kFqhZ6LLkzaz5EFdDecTs1jpC2eXtGJvxla49p0bCxlLjjwhH2bkCW6SoeQElp(SIcQRdazjwN)qDYpzDmJr8rzfegIaUfO4srcOdOdN1bRdH6AfU84ZUwShuVRTPanuxbjUsKoMNNnIlQy6a6WzDW6qOUwHlp(SRf7b17ABcOg6ieALQtE4SjINahRUwaW7FOd4U2HiI1rODGchSoRdHQ3YJpROG66aqwI15puN8twhZyeFuwbHHiGBbkUuKaQRUoGoCwNjWXQRfa8(h6aURTWK3oYvxva]] )
+    storeDefault( [[Brewmaster: Default]], 'actionLists', 20170110.1, [[dWZngaGEisAtKu2ff2gPQ9jKYSHA(qu9BqRti52aESGDsk7v1ULSFi8tiHHjLghePopK0qHi0GbQHtqhurDkiI6yu0PvAHeyPaXILQLt0dHe9uultiEoLMieLPsIMSctx0fjvomvxg56cvFdi9mPOntc2oj0NHu)LqttivMhejgPqQ67KKrtsvJNKkDsfPxluUgeb3trSiPWHiPIrbrKV5vEwx5DmnUGZSqkSoErQEUW6Ar0J0N1Ca6SajPcWTjjJcbyKrk4XX5zqim5w6ArAn1BgPvVH5zoixH55ZZHCHL9kVM5vEwx5DmnUGZCqUcZZjenAmzSvsszCHP98CFXBI6zRqYLIQ3RHOnLBm680ASbpHYZfSOZGqyYT01I0AQ3euJ2MN1Ca6mlKCjcWrVxdeG5uUXONxlYvEwx5DmnUGZCqUcZZjenAmzeGq8aQQSQHKqoY7XvqbJogch4420iUqKJ80LOP0ixasmHIJLqkt03IKpplrBpxoanbIhIQC555(I3e1ZcH5cRZtRXg8ekpxWIodcHj3sxlsRPEtqnABEwZbOZiryUW651AELN1vEhtJ3pZb5kmpNEfBl0QfGq8aQQmwjSSX2sSljvgb17s0KDsacXdOQYyLWYgBlXUKuzeuVlrtwraxDvBRaeyl0IdhWrtInTrR98CFXBI65vclBSTe7ss15P1ydEcLNlyrNbHWKBPRfP1uVjOgTnpR5a05PsyzJTfcWcKKQNxl6UYZ6kVJPX7N5GCfMNJBjXbPav2vrYEEwI2EUCaAsdbssfGBtsgfcWiJuGk7QizBCEUV4nr9CWXyrpKlSeXRnppTgBWtO8Cbl6mieMClDTiTM6nb1OT5znhGoJmsbQSRIK951qcx5zDL3X04coZb5kmpRoPJPkn6ypedgpfdqGo0GkVJPHAEixfjrQiGLSrZ88SeT9C5a0KgcKKka3MKmkeG50RHlhiapJcDnop3x8MOEo4ySOhYfwI41MNNwJn4juEUGfDgectULUwKwt9MGA028SMdqN50RHlhiapJcDpVM(R8SUY7yACbN5GCfMNthtvA0XEigmEkgGaDObvEhtd18qUksIuralzJM55zjA75YbOjneijvaUnjzuiaJsiqhIa8mk0148CFXBI65GJXIEixyjIxBEEAn2GNq55cw0zqim5w6ArAn1BcQrBZZAoaDgLqGoeb4zuO751a9kpRR8oMgxWzoixH5z1jDmvPrh7HyW4Pyac0Hgu5DmnuZd5QijsfbSKDI55zjA75YbOjneijvaUnjzuiaZPxdxoqaMv248CFXBI65GJXIEixyjIxBEEAn2GNq55cw0zqim5w6ArAn1BcQrBZZAoaDMtVgUCGamR851q6R8SUY7yACbN5GCfMNthtvA0XEigmEkgGaDObvEhtd18qUksIuralzNyEEwI2EUCaAsdbssfGBtsgfcWOec0HiaZkBCgectULUwKwt9MGA02880ASbpHYZfSOZAoaDgLqGoebyw555(I3e1ZbhJf9qUWseV285ZZiJuWJJZl45pa]] )
 
-    storeDefault( [[SimC Import: precombat]], 'actionLists', 20161206.1, [[b4vmErLxtvKBHjgBLrMxc51uevMzHvhB05LqEn1uWv2yPfgBPPxy0L2BU5LtYytoEnLuLXwzHnxzE5KmWeJnXeZmW4smEn1uJjxAWrNxt51ubngDP9MBZ5fvE5umErLxtvKBHjgBLrMxc51utnMCPbhDEnfDVD2zSvMlJ92BSr2B352CEnvqYD2CEnLBH1wz98gBK91DHjNxtfKyPXwA0LNxtb3B0L2BU51uj5gzPnwy09MCEnLBV5wzEnLuLXwzHnxzE5KmWeJnXCJlWmJxt5uyTvMxtb1B0L2BU5fDErNxt5uyTvMxtnvATnKFGLuBW9MC0PJFGbNCLn2BTjwy05fDE5f]] )
+    storeDefault( [[Brewmaster: Defensives]], 'actionLists', 20170110.1, [[dOdkeaGEkj1MOu0UuyBcv7JsHztXVbUTuzDusyNczVq7wL9tkJsO0WqKXrKspMWqjsLbtudxvoir4uikoMu68KQfQQAPsHfdQLl5HusYQekwgLQNJKjsjLPsjMmsnDsUOQsNw0LrDDPQVrK8teLSzbTDkj61Qk(mitJiv9DfnseL6WknAbgVu0jjIUfLuDnIuCpkLEgIQ)IWtPASfTG(3BHnmn(JU)yrUM0QxvcomYECPf9OTJr)V4z3sP4Yk0KTghYhvALmf6wJd3EJc)rVbB4LIXi7KAJ3ANu8rl6n4Lw3s2XOhRMSaam0G5nE9vgQNhebCXZHiyliMIOBBQjBDnzbayObZB86Rmuppic4INdrWwqmfryTcvcU1Ojtgn5y0KfaGHgmVXRVYq98GiGlEokweSfeJUecvcok0cg1Iwq)7TWgMg)rpA7y0)nR4JMmz1ut(V4j6nydVumgzNuB8wPgKihDjp6uSkqH(bogDxu5tHUaam0G5nE9vgQNhebCXZHiyliMYwsOlbCAsLo6WMv8Ha0KaU4jQWi7Of0)ElSHPXF0J2ogDPRVYq98G0K)lEIUvTpvco0rVbB4LIXi7KAJ3k1Ge5Ol5rNIvbk0pWXO7IkFk0rxc40KkD0F9vgQNhebCXtuHrKJwq)7TWgMg)r3fv(uOR27tEq2uaagAW8gV(kd1ZdIaU45qeSfetzRaam0G5nE9vgQNhebCXZHiyliMIOBBIE02XOlzboQp5Pj)x8e9gSHxkgJStQnERudsKJUeWPjv6ONf4O(KhbCXt0BWlTULSJrpwnzbayObZB86Rmuppic4INdrWwqmfr32ut26AYcaWqdM341xzOEEqeWfphIGTGykIWAfQeCRrtMmAYXOjlaadnyEJxFLH65brax8CuSiyligDjp6uSkqH(bogDxu5tzr)XORYogvyK0Jwq)7TWgMg)rpA7y0)28XgnzYERo0BWgEPymYoP24Tsniro6sE0PyvGc9dCm6UOYNc9aEn5brq9c4Ihcq)PSHTT2m2aEnQGbnhMIuzdBPuRASk1k(q8atUIrQH0etaVM8GiOEbCXdbO)uKbDjGttQ0rNB(ydrWwDOcvO7IkFk0rfIa]] )
 
-    storeDefault( [[SimC Import: sef]], 'actionLists', 20161206.1, [[dGJrdaGEkfBcI0UOsBJcTpiIzcrz2GUTQStG2Ry3kTFuAuqbdJs(nHLbvnyumCk4GkYPGI6yaoNQsSqkYsPuTyf1Yr1dPIEkYJPQNdPjcL0uHWKjQPl5IQQoSkxM01HISrvLQNrrTzIuNNkCAPMfevttvP8DOq)vbFtvXOjsgpuQtse3svjDnOe3dQ0NvOfbvSokLoabrO)9MHQCmfcRQ0hMGvmfImO((GTnx1InG4n(Lq2vOEOAaXBbyeaWSLlqiYZBdvOqt(QflAqeqGGi0)EZqvoMcbEpn0)Q8X2MEhzz(Hn2np00Cd7YriDv(yBtVJdkSXU5HKSYT)kbp0kwnKDfQhQgq8wagb(4AzovaXheH(3BgQYXuiYZBdvOsmocvxVqaLfyCrrkg8s1UVd7V6LQD9yIZ1TqcUaivxLp6WT6NouIH3HnsW1Yflyo00Cd7YrOJ7VvhkbNRBfsYk3(Re8qRy1q2vOEOAaXBbye4JRL5qG3tdnX93QSmieCUUvQaAoic9V3muLJPqG3td58GqwMjF1ILLbznAfAIpIgAVNIlou)CYYi5zqWlBzzCIvCcnn3WUCeYFq4W5RwSdWgTcjzLB)vcEOvSAi7kupunG4Tamc8X1YCQa(TGi0)EZqvoMcrEEBOcvIXrO66fcOSaJlAOP5g2LJqOLG)g0JxsnCR8G0nxdjzLB)vcEOvSAi7kupunG4Tamc8X1YCiW7PHOsWFiNL5)4LuiNL5wzwMV3CnvaXsqe6FVzOkhtHaVNgY5bHSmt(QflldYA0ILbdayo0eFen0EpfxCO(5KLrYZGGx2YYqiWj00Cd7Yri)bHdNVAXoaB0kKKvU9xj4HwXQHSRq9q1aI3cWiWhxlZPsfc8EAiQFozzK8mi4LTSmOQ0Psa]] )
+    storeDefault( [[Brewmaster: Combo ST]], 'actionLists', 20170110.1, [[dOZSdaGAcQA9eaVKqPDrQ2guzFeGMnr3gfRJaYoH0EP2nQ2pigfbudJughHQoSOHsqQbdudxHoOaofbfhdLEMaTqfzPqPfdQLtYdjOYtv9yHEoetKGstvsMmGPl1ffKVjPCzKRdKnsq0PvAZsQETc(mu8vcuMgbjFNqLnrG08iqmAczveeoPG6VkQRrO48G0kjq1YGQ(TeBwx5hINWscWt(pQ2X23hnzi)jfjoMePjLabbSWvyGlqa)kFHLQNGKTN8XsskriJIxJfhlEnC6S(yPeaA1Yq((bI9w4iUYOSUYpepHLeGN8rtgYFsMXHcOgc43QDGGawGf7fg)hv7y73PK4ToSmJdfq9CSWax0jEcljabnJ9w46deMzeMerKUIsaOZ9YqccMiGqWQlg)WCGnMDr5ZlCYhljPeHmkEnwCS101c6JLsaOvld57haELBd1hwMXHcOEgPv7a5)OAh7kOJKpYYeDBu8UYpepHLeGN8rtgYxSegiGptIiYhljPeHmkEnwCS101c6hMdSXSlkFEHt(bGx52q9himZimjIi)hv7y772ObDLFiEcljap5JMmK)KmJdfqneWVv7a5JLKuIqgfVglo2A6Ab9dZb2y2fLpVWj)aWRCBO(WYmoua1ZiTAhi)hv7y772OcLR8dXtyjb4j)hv7y77JLKuIqgfVglo2A6Ab9dZb2y2fLpVWjF0KH8Xccr0YXabSGNaeeWc2Yb8daVYTH6RaHiA5yMf(eGMf3YbCBuX4k)q8ewsaEY)r1o2(aemO611himZimjIiDqJ(yjjLiKrXRXIJTMUwq)WCGnMDr5ZlCYhnzi)jfLTiiGl1Hawixf5haELBd1hwrzlAUuFU(Qi3gfNR8dXtyjb4jF0KH8RwmKccyHoLm(yjjLiKrXRXIJTMUwq)WCGnMDr5ZlCYpa8k3gQFVyi18ykz8FuTJTpXjfgO6rqkfXBbuZTB)psXnLRaK9w4gfpoX72g]] )
 
-    storeDefault( [[SimC Import: serenity]], 'actionLists', 20161206.1, [[daeZjaqicvTiPqztsvmkPGtru1QKcr7sGHjvogKwgPYZiKPjfQUMkuTnQKVjv14KcHZjLkToPuY8iu5EsvAFek6Gq0cjv9qcLMOuk1fPsTrPu1jLIwPui5LQqMPui1ojyPeLNImvPKVkLc7v5VIAWuLddAXKYJHAYQQlJAZq4ZuXOjQCAkRwkv8AImBHUTG2TKFRkdxLSCsEUith46QOTRc(UkugVuk68QuRNqH9tv9qxRrUlOwK)t)O2MrapJGPFeDXydgnXacSxnbDUA3rY4idt8e01H6cfvuxa6icRSlWOriXa7vP1AcOR1i3fulY)PFKamKh5UyLJjgw5475oATPPgHuZIg4EexSYXedRCYC0AttnQz9nme8uJQxXJKXrgM4jORd1fA)GordmbDR1i3fulY)PFKamKhjwym67HedSx571OTeyesLtAubd5EBmYcfRVxZWRNc0w(EITTBSri1SObUhHHXygIb2RYrlbg1S(ggcEQr1R4rY4idt8e01H6cTFqNObMGO1AK7cQf5)0pIWk7cmc8CCICa(9I)3XQ0iKAw0a3JsSIldCpQz9nme8uJQxXJKXrgM4jORd1fA)GorJeGH8iIvCzG7bMqJVwJCxqTi)N(rcWqEebuMe779q47bKJ99AdR(XN6pcPMfnW9OeqzsC(HidKJZhZQF8P(JAwFddbp1O6v8izCKHjEc66qDH2pOt0at44R1i3fulY)PFeHv2fyK2jcebjwXLbUdoV6r7ebIGeR4Ya3bkoeAvsC96G)ns0GJpcPMfnW9iewcKYpezeNQ7rnRVHHGNAu9kEKmoYWepbDDOUq7h0jAKamKh1Elbs(Epe(ET)uD771axF5hycUwRrUlOwK)t)icRSlWiigyh4mxCOXjXjQNg(S2jcebHqLu(HidKJZyfS4GZREGyGDGZ)hiieQKYpezGCCgRGfloigyh4mxCOXj5hHu5KgHVXrodGkhgK6fDesnlAG7rklzLtoDwzjdlnQz9nme8uJW34ipsghzyINGUouxO9d6ensagYJKzjRC89OZY37idl571aQ8dmH(R1i3fulY)PFeHv2fyeedSdCMlo04K4encPYjnAesnlAG7rklzLtoDwzjdlnQz9nme8uJQxXJKXrgM4jORd1fA)GorJeGH8izwYkhFp6S89oYWsdmHgXAnYDb1I8F6hjad5rT3sGKV3dHVx7pv3JqQzrdCpcHLaP8drgXP6EuZ6Byi4PgvVIhryLDbgnsghzyINGUouxO9d6enWeA31AK7cQf5)0pIWk7cmcIb2boZfhACsm7vupI)sXhYo4Fq6YQYkNmwblolzyPri1SObUhLUSQSYjJvWIZsgwAuZ6Byi4PgvVIhjJJmmXtqxhQl0(bDIgjad5r0LvLvo(EIvbl237idlnWeq7wRrUlOwK)t)icRSlWiigyh4mxCOXjXSxr90WN1orGiieQKYpezGCCgRGfhCE1dedSdC()abHqLu(HidKJZyfSyXbXa7aN5Idnoj)iKkN0i8noYzau5WGuVOJqQzrdCpszjRCYPZklzyPrnRVHHGNAe(gh5rY4idt8e01H6cTFqNOrcWqEKmlzLJVhDw(EhzyjFVgej)atafDTg5UGAr(p9JiSYUaJGyGDGZCXHgNeZEfncPYjnAesnlAG7rklzLtoDwzjdlnQz9nme8uJQxXJKXrgM4jORd1fA)GorJeGH8izwYkhFp6S89oYWs(EnOt(bMaQU1AK7cQf5)0pIWk7cms8xk(q2b)d0IqS07eKLmSupn8zTteiccHkP8drgihNXkyXbNx9aXa7aN)pqqiujLFiYa54mwblwCqmWoWzU4qJtYpcPYjncFJJCgavomi1l6iKAw0a3J0IqS07eKLmS0OM13WqWtncFJJ8izCKHjEc66qDH2pOt0ibyipsFeILENaFVJmSKVxdOYpWeqfTwJCxqTi)N(rewzxGrI)sXhYo4FGweILENGSKHLgHu5KgncPMfnW9iTiel9obzjdlnQz9nme8uJQxXJKXrgM4jORd1fA)GorJeGH8i9riw6Dc89oYWsdmb0gFTg5UGAr(p9JiSYUaJe)LIpKDW)G0LvLvozScwCwYWsJqQzrdCpkDzvzLtgRGfNLmS0OM13WqWtnQEfpsghzyINGUouxO9d6ensagYJOlRkRC89eRcwSV3rgwY3Rbu5hycOhFTg5UGAr(p9JiSYUaJe)LIpKDW)a1zsoRCYTd8Z5Jz1FesnlAG7rQZKCw5KBh4NZhZQ)OM13WqWtnQEfpsghzyINGUouxO9d6ensagYJKDMKZkhFVgf8Z(ETHv)bgyKamKhrwOy99AgE9uG2Y3lXkUmW9aB]] )
+    storeDefault( [[Brewmaster: Combo AOE]], 'actionLists', 20170110.1, [[dCdPdaGAcHwVQO8scr7svABQk7tvKMnPUnrTtr2l1UrSFa(jsLmmc(TOgksvzWQQgUGois5yq1JbzHczPiXIHYYj5HesEQYYa0ZH0erQWuHWKbA6QCri6WsDzuxhu2isvmocbBwv4Zc1PL8vKkAAivQVRkINre)funAK04jK6Kc41c01qQQopHALQIQVrKwhsvAJBeEijnMMbDK3Guv455rh8JgM(CKhfwZnk7eqb8pCGcFV4ElKHQwxpRVktCc4Ni4rd6Qmb1iCc3i8qsAmnd6iVulZEifDOodwKya)IKJ9OWAUrzNakG)Hl9vqIxacyb1xw5rYe2JgwPRtShl6qDgSiXWdYXEdsvHNNpNaAeEijnMMbDKxQLzprYXa(NCJs1JcR5gLDcOa(hU0xbjEbiGfuFzLhjtypAyLUoXEb5y4OYnkvVbPQWZZNtsmcpKKgtZGoYl1YSNOOwa(JGPqppkSMBu2jGc4F4sFfK4fGawq9LvEKmH9OHv66e7brTGJbtHEEdsvHNNpNOBJWdjPX0mOJ8sTm7fP4(Oc4p)aWp9uk2JcR5gLDcOa(hU0xbjEbiGfuFzLhjtypAyLUoXEykUpQWZpG)OuS3Guv45bYyWE84nihdhvUrP(cl0Nt0Vr4HK0yAg0rEdsvHNNhfwZnk7eqb8pCPVcs8cqalO(YkpsMWEPwM9OadLArIb8)8gKb8tNfb0JgwPRtSNcgk1IedxeBqg(tkcOpN(mcpKKgtZGoYBqQk88ycRIf)cbtPyY9ubpkSMBu2jGc4F4sFfK4fGawq9LvEKmH9sTm7HOIzfGF6R1YE0WkDDI9UkMvWdBTSpNKAeEijnMMbDK3Guv455rH1CJYobua)dx6RGeVaeWcQVSYJKjSxQLzViDdfmd7a8VtvbzpAyLUoXEy6gkyg2bh9uvq2NpVulZErk(jYn6Xk6fWVOYYyza)0OlK(Sb]] )
 
-    storeDefault( [[SimC Import: ST]], 'actionLists', 20161206.1, [[di0ilaqikkwKuLQnrk1OKK6ussULOs1UqYWeQJbXYifptqMMuL01evyBc03KeJJIs15evkRtQszEIk5EuuTpPkoijSqb8qqkteKQUOqAJGuXjfvTskkLxkQOzcsL2jsnuPQyPcQNsmvkYxLQs7v5Vsmyj1HbwmfEmIjdQlJAZcXNjPrtIonvRwQs8ArA2u62KQDRYVLYWfLLd1ZH00v11fX2bjFNuIXlvvNheRNIsMpPK2Vu5HmttIEadldVatGEociX(lWejJjoW6Mf492nAnbZTjHzldq5rRjgjicsOykKjcb7z)KjkiV3o0zA0iZ0KOhWWYWlWeAGopbAaRTRwb5921vdDD0FIcSk6KdOZM37IRdTU686zn83BD1qd679jkmCR)qMqawBbqEVDfRJ(tYFWob8n8KRD8KWSLbO8O1eJeePcvCO9JwZmnj6bmSm8cmriyp7N8nvvltrAnlCtlhQ2vtu6u6G(ZDIsNIKGX899yoI28XyviuVRZLVv0b93J5Xu5OQjkmCR)qMaWeWXLVHX89tYFWob8n8KRD8KWSLbO8O1eJeePcvCOj0aDEIcmbCCxTPggZ3VF0HMPjrpGHLHxGjcb7z)e(ySkekscgZ3Nl(ySkekDq)Atu6uKemMVpxMJmrHHB9hYe(ySQBw(PwyR3VJNK)GDc4B4jx74jHzldq5rRjgjisfQ4qtOb68KOhJvDZYp1U6OwVFhVF096mnj6bmSm8cmriyp7N8alFpfkJ5ZFiu8bmSmSw1kG8ouCHpw3z0CfCIcd36pKjOp2t5sls5vYfT4hSTHHNK)GDc4B4jx74jHzldq5rRjgjisfQ4qtOb68e5XEk3v3I0v)k5U6(6hSTHH3p6CmttIEadldVatOb68eOJJ(OD1TiD1qNemKjkmCR)qMeXrF0slsjscgYK8hStaFdp5AhpjmBzakpAnXibrQqfhA)OdottIEadldVatec2Z(jaY7qXf(yDNr7bqEhkUa3EkSJ6NAbn5kPojvBy2ijsekSJ6NAbn5kPojLkjBIcSk6eceILlpaRYpQ5ituy4w)Hmb7O(PwqtUsQtsNK)GDc4B4jeielpjmBzakpAnXibrQqfhAcnqNNe2r9tTRwsUU6C6K0U6QrQA)ORmttIEadldVatOb68KWoQFQD1sY1vNtNKorbwfDYefgU1FitWoQFQf0KRK6K0j5pyNa(gEY1oEsy2YauE0AIrcIuHko0(rB2NPjrpGHLHxGj0aDEsFv6yRFQD1qpgO2UU6(KCeLtuy4w)HmrlkDS1p1cmgO2UswYruoj)b7eW3WtU2XtcZwgGYJwtmsqKkuXH2p6CBMMe9agwgEbMieSN9taK3HIl8X6oJ2J5H02mzygQIkbMcnZVZp1cbdoUK6K0jkmCR)qMGM535NAHGbhxsDs6K8hStaFdp5AhpjmBzakpAnXibrQqfhAcnqNNiz(D(P2vdnm44U6C6K09JgjEMMe9agwgEbMieSN9tikDkDq)5orPtrsWy((Eq02mzygQIkbMcNGQ0p1sVaG5Iw8dEIcd36pKj4euL(Pw6famx0IFWtYFWob8n8KRD8KWSLbO8O1eJeePcvCOj0aDEs4euL(P2vB2aWCxDF9dE)OrqMPjrpGHLHxGjcb7z)KQjkDkscgZ33dIw1QrsKiugT0sgUrOsYQsBZKHzOkQeykdlGK2s(sQts1UAy2ijsekDaoT0IuELCHGbhtLKPnG8ouCbU9u6aCAPfP8k5cbdooxaY7qXf(yDNrRAIcSk6eceILlpaRYpQ5ituy4w)HmXWciPTKVK6K0j5pyNa(gEcbcXYtcZwgGYJwtmsqKkuXHMqd05jbSasAl57QZPts7QRgPQ9JgrZmnj6bmSm8cmriyp7NunrPtrsWy((Eq0QwnsIeHYOLwYWncvswvABMmmdvrLatzybK0wYxsDs6efyv0jtuy4w)HmXWciPTKVK6K0j5pyNa(gEY1oEsy2YauE0AIrcIuHko0eAGopjGfqsBjFxDoDs6(rJeAMMe9agwgEbMieSN9t4JXQqOExNlFROd6VhZ1qPjhtuy4w)HmHO0lAbafpj)b7eW3WtU2XtcZwgGYJwtmsqKkuXHMqd05jqtP3v3xau8(rJ0RZ0KOhWWYWlWeHG9SFcFmwfc176C5BfDq)9yUgkn5yIcd36pKjeLEXibJ(tYFWob8n8KRD8KWSLbO8O1eJeePcvCOj0aDEc0u6D1bsWO)(rJKJzAs0dyyz4fyIqWE2pXmzygQIkbM6DvgxYawDTRgMnsIeHshGtlTiLxjxiyWXujzAdiVdfxGBpLoaNwArkVsUqWGJZfG8ouCHpw3z0QMOaRIoHaHy5YdWQ8JAoYefgU1FitExLXLmGvFs(d2jGVHNqGqS8KWSLbO8O1eJeePcvCOj0aDEIjxLXD19by17QRgPQ9Jgj4mnj6bmSm8cmriyp7NyMmmdvrLat9UkJlzaR(efyv0jtuy4w)Hm5DvgxYaw9j5pyNa(gEY1oEsy2YauE0AIrcIuHko0eAGopXKRY4U6(aS67hnsLzAs0dyyz4fycnqNNyYvzCxDFaw9U6QJ7QHMsVQjHzldq5rRjgjisfQ4qtYFWob8n8KRD8efgU1FitExLXLmGvFIqWE2pHO0PijymFV5X73pHgOZtexhAD151ZA4V36Qft73a]] )
+    storeDefault( [[Brewmaster: Standard ST]], 'actionLists', 20170110.1, [[d0Z7eaGAru16fsYlve1UeQTHq7tiLMnrZxrWVf1JvXTjvphs7uP2l1UHA)QuJseLgMGgNIqFJumuvcnyimCs6GcXPerLJHuNtePwOsAPKOfJOLt4HkI8uWYqI1jKIjkIKPcrtwHPRQlIKoTuxg11vuBuerpJuAZKW2fs8DvsFvLGPjKQMNik(Ri9AfPrReJxLOtkcFwGRjIW5rWkfsQdlztcPYM2inqfxKsE4vdGkF6s2rv9Dg7nfIt0qsXkQz57vdkzjxOS3ucPjstjKymTb4iA13GHiNVZyuJ0BAJ0avCrk5HxnSlD2WK5GBeGEHUyqjl5cL9MsinrAnXHAnKap6t9zHbCgZgGJOvFdgIq2Y(jyykhKIQxOl(9MIrAGkUiL8WRgGJOvFddMCwHI4PCqkQEHUepRoHjmyYzfkIrv5txY0bl7OWccXZQguYsUqzVPestKwtCOwdjWJ(uFwyaNXSHiKTSFcgifC9lPzfPkAbByx6SHvbx)YnISIBejzly)ER1inqfxKsE4vdWr0QVbdkzjxOS3ucPjsRjouRHe4rFQplmGZy2qeYw2pbdKY6mnp)POVONYg2LoByvwNP55)gb8IEk737O3inqfxKsE4vdWr0QVHtolh5R4y1zrRGqJdsjf814Zsjcy0K5KZYr(kowDw0ki04GusbFn(SuIagnvVU0qeYw2pbdFhWIu1sQBibE0N6Zcd4mMnSlD2aYoGf3iUyj1nOKLCHYEtjKMiTM4qT(9ojmsduXfPKhE1aCeT6B4l80gheDOFfeWI4sppJ)OvDw0kiK(lcgDjlhgIq2Y(jyGVuvMhnoiDkhyibE0N6Zcd4mMnSlD2a1lvL5rJdUrmzoWGswYfk7nLqAI0AId163BIgPbQ4IuYdVAaoIw9nyqjl5cL9MsinrAnXHAnKap6t9zHbCgZgIq2Y(jyqmJU04G0KVgC61gpmSlD2GYz0LghCJiQRbFJ4cnE43BngPbQ4IuYdVAaoIw9nyiczl7NGHZsNsolqFdjWJ(uFwyaNXSHDPZgM0sFJyDwG(guYsUqzVPestKwtCOw)EprJ0avCrk5HxnahrR(gmOKLCHYEtjKMiTM4qTgsGh9P(SWaoJzdriBz)emCw60Rvuyd7sNnmPL(gXfQOW(9oPnsduXfPKhE1aCeT6BWGswYfk7nLqAI0AId1AibE0N6Zcd4mMneHSL9tWW3bSivTK6g2LoBazhWIBexSK63isw6KZVFd7sNnSk4R6f6ZIO5gb8fEuIXncaPFBa]] )
 
-    storeDefault( [[SimC Import: CD]], 'actionLists', 20161206.1, [[dWZKgaGEqrAtqPDPOTPuSmkvZMOdRYZucNhK(Mc1Pv1ofP9IA3a7xPAuuiddkgNiGxRe9xQmyqmCL0HeroffQJjQooOKfkkTuqLftrlNupeuupvQhtyDGIyIIOMkLYKHmDjxeu1SeH6YixNK2iOG(mj2mLSDqP(of8vrGMMiK5jk62kySGcmAOA8IGoPsPNtvxdui3tu4CGc1VfoOczoNTXn8GZusiol3jtwNQS4SC3RK4p5dtV6daNAFdmMB4ijDEItTJjFtE(cmZCUBH(xlU5EKO(a4zBCAoBJB4bNPKqCwUBH(xlURqrrstresuya45EK5l)ck3pa2XsYLqvcW9wa6fxfAUbbG4gossNN4u7yY3KpEIzb3P3aX9waSJL0oeyGkbs8oKcN2HKG4Fr7qS9kKMlo1oBJB4bNPKqCwUBH(xlURqrrstresuya45EK5l)ck3MYiqolvnuU3cqV4QqZniae3Wrs68eNAht(M8Xtml4o9giUZkJaTdbgQQHYfNUGTXn8GZusiol3Tq)Rf3vOOiPPicjkma8CpY8LFbLBts7j9YhOW9wa6fxfAUbbG4gossNN4u7yY3KpEIzb3P3aXDws7j9YhOWfNMi2g3WdotjH4SC3c9VwCxHIIKMIiKOWaWJ1OKoD9wNOMkNKCMQAFnjWzkjewcwQ)6kHM4pcra3W5ls7DwH28ric4QqvGJnPvnbBNIanRqvG7clhIUc3yUhPv8ClGkKKRoTcv(mYt8WLqNaQqsU60ku5ZWo3JmF5xq5UcvbUlSCi6kCU3cqV4QqZTaQqsCdhjPZtCQDm5BYhpXSG70BG42wOkW3Hew7qsMUcNlofgX24gEWzkjeNL7wO)1I7kuuK0ueHefgaESgL0PR36e1u5KKZuv7RjbotjHWMebl1FDLqt8hHiGB48fP9oRqB(iebCvOkWnM7rMV8lOCxHQa3fwoeDfo3BbOxCvO5geaIB4ijDEItTJjFt(4jMfCNEde32cvb(oKWAhsY0v47qmk3yU40nSnUHhCMscXz5Uf6FT4UcffjnfrirHbGhRrNUERtutLtsotvTVMe4mLeclbl1FDLqt8hHiGB48fP9oRqB(iebCvOkWXkIqIcdGPV0)sYfwUcNCgEasgA0utd3d8zMayfrirHbW069L3fwolvn0PMgUh4ZmJeHveHefgat97FGIZRcClFXYPMgUh4ZCm2Kw1eSDkc0ScvbUlSCi6kCJ5EKwXZTaQqsU60ku5ZipXdxcDcOcj5QtRqLpd7CpY8LFbL7kuf4UWYHORW5Ela9IRcn3cOcjXnCKKopXP2XKVjF8eZcUtVbIBBHQaFhsyTdjz6k8Digz3yU40XSnUHhCMscXz5Uf6FT4UcffjnfrirHbGhRrNUERtutLtsotvTVMe4mLecBseSu)1vcnXFeIaUHZxK27ScT5JqeWvHQahRicjkmaM(s)ljxy5kCYz4bizOrtnnCpWNzcGveHefgatR3xExy5Su1qNAA4EGpZmsewresuyam1V)bkoVkWT8flNAA4EGpZXgZ9iZx(fuURqvG7clhIUcN7Ta0lUk0CdcaXnCKKopXP2XKVjF8eZcUtVbIBBHQaFhsyTdjz6k8DigTWyU4I70BG4U)byEhY2H1qxWKDiWCYCXma]] )
+    storeDefault( [[Brewmaster: Standard AOE]], 'actionLists', 20170110.1, [[dOtheaGAQe16PIWlPsPDPI2gGMnLMpvkUTqoSKDkQ9s2ns7xL8tQemmk63aToQOyOurvdwLA4uvherDkQO0Xq4YOwOqTuezXqz5cEivQ6PkpgKNdvtKkIMkKmzrMUQUiO61QGNrfUoeTrQe50sTzQsBxfQXrLkFLkjtJkH(UkKVrH(lOmAi14PsQtsv8ziCnQOY5PGvsfPwgaJIkswecLgCAHz5KI1Cs2BH0(kwlxrSwCGpkQWFo4mx37lAQcPRBYUaCnsSLlCwzaMeajayc8KqB(mux22jQVbPkdaO70id9nifxOuMqO0GtlmlNuS2GcT)RPrgRT9BqJDTVfm1ueWoWi08qtnu9GbnkiL1YveRb31(wWutrCD7wgHgj2YfoRmatcGegpnDOxzacLgCAHz5KI1guO9FnnsSLlCwzaMeajmEA6qZdn1q1dg0OGuwJmwB73G2bgbm8OchTwUIyn3YiUUxuHJwVYoekn40cZYjfRnOq7)AjgdPxVNhyeWWJkC0Ni9DJBsmgsVEpX9zOUSWsSTpMdgor6RrITCHZkdWKaiHXtthAEOPgQEWGgfKYA5kI1IdC9OVUb9ED7sDG1iJ12(nOHf46rdd0lmVDG1RSlkuAWPfMLtkwBqH2)10iXwUWzLbysaKW4PPdnp0udvpyqJcszTCfXAX2c6aiY)6EFOpWAKXAB)g0WSf0bqKpm8p0hy9k7CcLgCAHz5KI1guO9FnnsSLlCwzaMeajmEA6qZdn1q1dg0OGuwlxrSgjK4OBkIRBNUs81TRAAsJmwB73Gwajo6MIaMlxjg2rnnPxzGcLgCAHz5KI1guO9FnnYyTTFdAqOByyid4VMhAQHQhmOrbPSgj2YfoRmatcGegpnDOLRiwZ9O7R7yKb8xVYgfkn40cZYjfRnOq7)AAKylx4SYamjasy800HMhAQHQhmOrbPSwUIyn3JUVUDvDmRrgRT9BqdcDd7O6ywVYUtO0GtlmlNuS2GcT)RPrITCHZkdWKaiHXtthAEOPgQEWGgfKYA5kI1q1i4W1TZx2ORBNIWz1iJ12(nO9ncoaZVSr61RnOq7)A6La]] )
 
-    storeDefault( [[Brewmaster: Default]], 'actionLists', 20161206.1, [[dWZngaGEisAtKu2ff2gf1(iPQzd18He9CkDyQUnGNjK2jPSxv7wY(bQrbrIHjLghjvCEiPHcrWGHWWjOdbrQtbrOJrQoTslKalfiTyPA5e9qiQEkQLjuToHWeHOmvs0Kvy6IUif5XcUmY1fkVwk8nGyZKqBNe8zi1Fj00GiY8GiQrkevFNKmAHiJNKkDsfPfjfDnHOCpfXbvu)es43G(6x5ztL3X04coR5a0zbssfGBtsgbyeiJu0JHZZiJu0JHZl4mOeMClDT4T6M11J2AOFMdYvyE(8CixyzVYRPFLNnvEhtJl4mhKRW8CcrJgtgBLKugtyApp3x8MOE2kKCPyK8AiAt52GopTgBWtO8Cbl6mOeMClDT4T6M1bXOn6znhGoZcjxcgrK71amcoLBd651IFLNnvEhtJl4mhKRW8CcrJgtgbiepGQkRAifuIYEmfv0OJHWboMnnIjeLOmDjAknYfGetO4yjK8eZTiXZZs02ZLdqtG4HOkxEEUV4nr9SqyUW680ASbpHYZfSOZGsyYT01I3QBwheJ2ON1Ca6msaMlSEETOx5ztL3X049ZCqUcZZPxn2cTAbiepGQkJvclBJTe7ssLrisUenzNeGq8aQQmwjSSn2sSljvgHi5s0KveWvx12kab2cT4WbC0KyuR6Bpp3x8MOEELWY2ylXUKuDEAn2GNq55cw0zqjm5w6AXB1nRdIrB0ZAoaDEQew2gBbgHajP651qsx5ztL3X049ZCqUcZZXSK4GuKk7QazpplrBpxoanPPajPcWTjjJamcKrksLDvGSnpp3x8MOEo4ySOhYfwI41MNNwJn4juEUGfDguctULUw8wDZ6Gy0g9SMdqNrgPiv2vbY(8Ar2vE2u5DmnUGZCqUcZZiD6yQsJo2dnGXsXaeOdnOY7yAOMhYvbsKkcyjR61pplrBpxoanPPajPcWTjjJamco9A4YbyeZOWuZZZ9fVjQNdogl6HCHLiET55P1ydEcLNlyrNbLWKBPRfVv3SoigTrpR5a0zo9A4YbyeZOW0ZRz(kpBQ8oMgxWzoixH550XuLgDShAaJLIbiqhAqL3X0qnpKRcKiveWsw1RFEwI2EUCaAstbssfGBtsgbyeihc0HGrmJctnpp3x8MOEo4ySOhYfwI41MNNwJn4juEUGfDguctULUw8wDZ6Gy0g9SMdqNroeOdbJygfMEEnqUYZMkVJPXfCMdYvyEgPthtvA0XEObmwkgGaDObvEhtd18qUkqIuralzNOFEwI2EUCaAstbssfGBtsgbyeC61WLdWiyLnpp3x8MOEo4ySOhYfwI41MNNwJn4juEUGfDguctULUw8wDZ6Gy0g9SMdqN50RHlhGrWkFEn15kpBQ8oMgxWzoixH550XuLgDShAaJLIbiqhAqL3X0qnpKRcKiveWs2j6NNLOTNlhGM0uGKub42KKragbYHaDiyeSYMNbLWKBPRfVv3SoigTrppTgBWtO8Cbl6SMdqNroeOdbJGvEEUV4nr9CWXyrpKlSeXRnF(8mlKcRJxKQNlSUwCZQZZF]] )
+    storeDefault( [[SimC Windwalker: default]], 'actionLists', 20170110.1, [[d8dRiaWAqSEHk1MaKDjPTbO2hjrntkj9CjMnkZhv5MkjhwLBdQZtI2Pq2lXUvSFbgfi1WiHXrsKoTudLKigmLA4kXbPeNcKCmuXXfQKfkOAPcslMuwoulcv6PuTmLuRJKYejjutfImzkMUOlkiESsDzKRdWFb6BusTzs12jj9Di1xjPAAusyEckJKKqEge1OHWNHKtku1HeQ4AKeCpHYdrvDokj63QAHJGK4HmNgJms4IhDWK4EdZpWw9EmOpgecRwGTH0paSu8qjgDfsIwRGdWCuOazX9fA3hRJ7l7FKO1aBLIBzN9pfbjjIJGK4HmNgJms4IhDWK4(cD4aBv0nMaBpXnesCFJ7Lu88rHIr1EscJbSKfGGopmkkRgsdGUEDFLShuvalqjoFe0gYQxvcMMu0epuIrxHKO1k4amhRRkqw84htVV8XIp)qIBrRzDQu8YcDyqe3yaljUHqIV6nrhmjUKs0AbjXdzongzKWf334EjfpFuOyuD5Z(NcqqRbqxVwimnDQScyHhpna661s(yyq6WjcWBmG6nMQaw4Xd64KhJMSwimnDQSsZPXidqjUhiuwxW)UEOAwNkRawGIhpna66vn2)ggGswbSWJxEyuuwZgMaZh00uyXawbuIBrRzDQu8Lp7Fep(X07lFS4ZpK4rhmjUk5Z(hXTGrveFoykg3f8Z(bfzaxE0eMR4Hsm6kKeTwbhG5yDvbYIZhbTHS6vLGPjfnXx9MOdMeN7c(z)GImGlpAcZvsjczbjXdzongzKWfp6GjXr6bSrey)6b2Qy6seI7BCVKINpkumQU)NzE0tbiOZdJIYA2Wey(GMMclMvcL48rqBiREvjyAsrt8qjgDfsIwRGdWCSUQazXJFm9(Yhl(8djUfTM1PsXZhWgb4RdAOlri(Q3eDWK4skrwHGK4HmNgJms4I7BCVKIdDEmAYAHW00PYknNgJmaT)NzE0tTqyA6uzftWxpLWIPakE80aORxleMMovwbSiUfTM1PsX3hJbE7S)bK1Lu84htVV8XIp)qIhDWK48pglW2Yo7FcSTAxsXTGrveFoykgxVH5hyREpg0hdcHvlWUqyA6ujxXdLy0vijATcoaZX6QcKfNpcAdz1RkbttkAIV6nrhmjoxVH5hyREpg0hdcHvlWUqyA6ujxjLivqqs8qMtJrgjCX9nUxsXJtEmAYAHW00PYknNgJmarXfGEzHmvdUhi9GceXJhW9RkHbcAO3)Zmp6PQ3LSa(6G6aWkRyc(6PewmoaTr01namMMuLJHmu84PbqxVwYhddshoraEJbuVXufWcpE7)zMh9ul5JHbPdNiaVXaQ3yQUrCyuuj2AE82)Zmp6jpmkkRzdtG5dAAkSyRvbE82)Zmp6PMpGncWxh0qxIOIj4RNIkhtLQcqjUfTM1PsX3hJbE7S)bK1Lu84htVV8XIp)qIhDWK48pglW2Yo7FcSTAxYaBO5aL4wWOkIphmfJR3W8dSvVhd6JbHWQfyxiDUIhkXORqs0AfCaMJ1vfiloFe0gYQxvcMMu0eF1BIoysCUEdZpWw9EmOpgecRwGDH05kPebSGK4HmNgJms4I7BCVKIhN8y0K1cHPPtLvAongzakouCbOxwit1G7bspOar84bC)QsyGGg6dNT(TZAjXnec81bteei6EmShBQ0CAmYa0(FM5rp1sIBie4RdMiiq09yyp2uXe81tjSyCScG2)Zmp6PQ3LSa(6G6aWkRyc(6PewmGbA)pZ8ONkUl9GcSayaH0BivmbF9uclgWqXJNgaD9AjFmmiD4eb4ngq9gtvalqjUfTM1PsX3hJbE7S)bK1Lu84htVV8XIp)qIhDWK48pglW2Yo7FcSTAxYaBOxdL4wWOkIphmfJR3W8dSvVhd6JbHWQfyxiDUIhkXORqs0AfCaMJ1vfiloFe0gYQxvcMMu0eF1BIoysCUEdZpWw9EmOpgecRwGDH05kPezTGK4HmNgJms4IhkXORqs0AfCaMJ1vfilE0btIZ)ySaBl7S)jW2QDjdSHgzOe3cgvr85GPyC9gMFGT69yqFmiewTaBhjUIBrRzDQu89XyG3o7FazDjfp(X07lFS4ZpK48rqBiREvjyAsrt8vVj6GjX56nm)aB17XG(yqiSAb2osCLusX9nUxsXLuea]] )
 
-    storeDefault( [[Brewmaster: Defensives]], 'actionLists', 20161206.1, [[dOdkeaGEkj1MOKYUKQTPQY(OKQztXVbUTcwNQQQDkK9cTBL2pPmkbvddughLe9ycdLifdMOgUQCqIWPuvLJjuNNuTqq1sLclgrlxYdPKWtPAzkKNJKjkiAQuIjJutNKlQqDArptvPRlL(jrk9AvfBwGTtKQwLGYNbzAePY3v0ivvv(lcJMsnEPOtseDlbHRrjj3tq6Bejxg1HvzmgTG(49inmnchD)XI8mPvFQeSy0OFwj6r3aJo8INdhLIR)RjhsoGxQu6zk0djhCTgfch9gSHpkgJgbl(xC8xy9y0BWhTULCGrpCnzbayObZT)ARmqpxicYINDH9vqmfXW1utoeAYcaWqdMB)1wzGEUqeKfp7c7RGykIG6eQeSNrt(pn5W0KfaGHgm3(RTYa9CHiilE2lwyFfeJUecvcwk0cgfJwqF8EKgMgHJE0nWOd3CIpAYsBtnz4fprVbB4JIXOrWI)flvh2x0LCPtXPaf6lyz0DrLpf6caWqdMB)1wzGEUqeKfp7c7RGyQqHHUeKPjv6OtAoXhcqtcYINOcJgHwqF8EKgMgHJE0nWOlnTvgONlKMm8INOlbzAsLo6V2kd0ZfIGS4j6wX9ujyrhDjx6uCkqH(cwgDxu5tHo6nydFumgncw8VyP6W(Ikm6lAb9X7rAyAeo6UOYNcD1TFYfYAcaWqdMB)1wzGEUqeKfp7c7RGyQqfaGHgm3(RTYa9CHiilE2f2xbXuedxt0JUbgDjlWs9jxnz4fprxcY0KkD0ZcSuFYLGS4j6nydFumgncw8VyP6W(IUKlDkofOqFblJEd(O1TKdm6HRjlaadnyU9xBLb65crqw8SlSVcIPigUMAYHqtwaagAWC7V2kd0ZfIGS4zxyFfetreuNqLG9mAY)PjhMMSaam0G52FTvgONlebzXZEXc7RGy0DrLpLf9hJUkhyuHrshAb9X7rAyAeo6r3aJ(4Mp2Oj)VRgqVbB4JIXOrWI)flvh2x0LCPtXPaf6lyz0DrLpf628zYfIG6zZf3fG2vz9qJTw428zu2DAoifPY6HsPov)uQt8H4bMCfMuDRkmB(m5crq9S5I7cq7Q(dDjittQ0rNB(ydH9vdOcvO7IkFk0rfIa]] )
+    storeDefault( [[SimC Windwalker: precombat]], 'actionLists', 20170110.1, [[b4vmErLxtvKBHjgBLrMxc51uofwBL51utLwBd5hyxLMBKDxySTwzYPJFGbNCLn2BTjwy051usvgBLf2CL5LtYatm2edmWmJxtnfCLnwAHXwA6fgDP9MBE5Km2KJxtf0y0L2BUnNxu5LtX4fvEnvrUfMySvgzEjKxtn1yYLgC051u092zNXwzUa3B0L2BUnNxtfKyPXwA0LNxtb3B0L2BU51uj5gzPnwy09MCEnLBV5wzEnLtH1wzEnfuVrxAV5MxtfKCNnNxt5wyTvwpIaNCVX2BUDwzK9fCVDxzYjIxtjvzSvwyZvMxojdmXytm34cmZ41udHwzJTwtVzxzTvMB05LyEnvtVrMtH1wzEnLiWj3BS9MBNvgzFb3B3vMCI4fDErNxtn1yYLgC051uErNxEb]] )
 
-    storeDefault( [[Brewmaster: Combo ST]], 'actionLists', 20161206.1, [[dOZSdaGAcQA9eaVuaSls12qP2hbOzt0THQ1razNGAVu7gv7hOgfbudJugNaQdlAOeKAWaz4kQdkiNIGIJHILHswOcwkuAXqSCsEibLwfbvESqphstKGOPkjtgW0L6Ic03KuUmY1bXgjq50kTzjvpJq9zO4ReeMgbjFxa5VkYMiqA0eY8iqCsb1RvORjaDEqALeO6PQ(TeBgx5hKNiscWd(pQ2523hoXj)bffi8eTjLabgKWwWrkGb9kFHKQNqKTh8XsskrjdZsJHndJynDgFSucaTAXjF)qXElCuxzygx5hKNiscWd(Wjo5piZ4ybsdg0B1osGbjWb4cJ)JQDU97us8whrMXXcKEkwWrk6eprKeGGMXElC9rcZekEIksxrja0PEXjbbteq4y0dOpwkbGwT4KVFiKvUnuFezghlq6j0wTJKFyoWgZUO85fo5JLKuIsgMLgdBMA6AI9FuTZDf0zYhDXJUnmlx5hKNiscWd(Wjo5hacdyqhprf5JLKuIsgMLgdBMA6AI9dZb2y2fLpVWj)qiRCBO(JeMju8evK)JQDU9DByXUYpiprKeGh8HtCYFqMXXcKgmO3QDK8XsskrjdZsJHntnDnX(H5aBm7IYNx4KFiKvUnuFezghlq6j0wTJK)JQDU9DByHYv(b5jIKa8G)JQDU99XsskrjdZsJHntnDnX(H5aBm7IYNx4KpCIt(yHGkA5yadsWtacmiHy5a(Hqw52q9vqqfTCmtcFcqtbA5aUnCaDLFqEIijap4)OANBFacbs966JeMju8evKoKzFSKKsuYWS0yyZutxtSFyoWgZUO85fo5dN4K)GIYweyqL6GbjyRI8dHSYTH6JOOSfnvQpvFvKBdZ2v(b5jIKa8GpCIt(vlgsbgKqNsCFSKKsuYWS0yyZutxtSFyoWgZUO85fo5hczLBd1VxmKAAoL4(pQ252N4Kcdu9ieLI4TaQ52T)NP4MYvaYElCdZIDGDBd]] )
+    storeDefault( [[SimC Windwalker: sef]], 'actionLists', 20170110.1, [[diK7iaqiQqTiPGnjvmksQofjLzrLQBHevTlenmi5ysPLrL8mPstdjQCnQuABsv9nKIXHeLZjfkRdPQMhsvUhsL9jfYbPQAHiLEiP0ePcPlkfTrKiNKK0lPcIzsfu3KuStsmuQG0srcpLyQuv(kvG9c(ledMsoSIftQESGjlQlJAZuLpJKgnL60q9Ak0Sf52cTBL(TQgov0Yv55imDjxhsTDsIVlvz8uP48uW6LcvZNke7NIgAbFG0Ch9eNbAbrzImicoQ10Yb4n3Bsg5J(MweShiuWjEiyqXfQ2(TOq1feXjhWtc34tH)fuC1VXaXFOW)sa(aLwWhin3rpXzGwquMidIpmv(mTCOtkcIeoSZceE5JQbYa674TOJx(OAGmoUPtWgtgqFhVf9AbrRnhmQ5vHJ8wGoiuWjEiyqXfQ2(T0qIQliQUzCyQ)az)LbXVooHldGuyQ8H4Csrq08zLjYGafO4c8bsZD0tCgOfeLjYG4)cZYMw((74Tarch2zbs9uPMyYW)P83Bj6OEWgtgh3q5d2yYa674TAeDTD4LpQgilCKrQhjoUPr0HI0TQbIwBoyuZRch5TaDqOGt8qWGIluT9BPHevxquDZ4Wu)bY(ldIFDCcxgazUWSms93XBbIMpRmrgeOaLUGpqAUJEIZaTGqbN4HGbfxOA73sdjQUGOmrgeTtkzA5pu4FnTCymrbI)Jkbi7ez6AqWrTMwoaV5EtYiF030sRJ2ai(1XjCzaKWKsitOW)IKWefiQUzCyQ)az)LbrRnhmQ5vHJ8wGoiA(SYezqAqWrTMwoaV5EtYiF030sRJ2auGcLd8bsZD0tCgOfeLjYGi1Fr3nTAoxz7UP1SztlkHpgejCyNfi1tLAIjd)NYFVLOJ6owhTNhjr9xeHNRSrMnJ4HpMeTZoQh(pL)Elz9Od2iVhsMNYM844Gxc6rhL5ios4)u(7TK1JoyJ8EizEkBYJJdEjAeL5w1udeT2CWOMxfoYBb6GqbN4HGbfxOA73sdjQUGO6MXHP(dK9xge)64eUmacr9xeHNRSrMnJ4HpgenFwzImiqbkUf8bsZD0tCgOfeLjYGi1Fr3nTAoxz7UP1SztlkHp20s9w1arch2zbs9uPMyYW)P83Bj6OUJ1r75rsu)fr45kBKzZiE4Jjr7St4)u(7TKe1FreEUYgz2mIh(yYG9Cuzc6CPgiAT5GrnVkCK3c0bHcoXdbdkUq12VLgsuDbr1nJdt9hi7Vmi(1XjCzaeI6VicpxzJmBgXdFmiA(SYezqGcu6d(aP5o6jod0cIYezqK6VO7MwnNRSD30A2SPfLWhBAPUl1arch2zbs9uPMyYW)P83Bj6OUJ1r75rsu)fr45kBKzZiE4Jjr7StnhvUilCKrQhjJz6rNl3QgiAT5GrnVkCK3c0bHcoXdbdkUq12VLgsuDbr1nJdt9hi7Vmi(1XjCzaeI6VicpxzJmBgXdFmiA(SYezqGcuOb8bsZD0tCgOfeLjYGi1Fr3nTAoxz7UP1SztlkHp20s9UQbIeoSZcK6PsnXKH)t5V3s0rDhRJ2ZJKO(lIWZv2iZMr8WhtI2zNW)P83Bj9WefbY7H4H(mqECCWlb9ORTtWgtgqFhVvJORRAGO1Mdg18QWrElqhek4epemO4cvB)wAir1fev3mom1FGS)YG4xhNWLbqiQ)Ii8CLnYSzep8XGO5ZktKbbkqHYaFG0Ch9eNbAbrzImiuctueMwVNPfLqFgarch2zbIoAppsI6VicpxzJmBgXdFmjANGO1Mdg18QWrElqhek4epemO4cvB)wAir1fev3mom1FGS)YG4xhNWLbq8WefbY7H4H(maIMpRmrgeOaLgd8bsZD0tCgOfeLjYGqbMaVunTe0RPLdbhmcIeoSZceD0EEKe1FreEUYgz2mIh(ys0o7eSXKb03XBrNRo8YhvdKb03XBrpE5JQbY44gq0AZbJAEv4iVfOdcfCIhcguCHQTFlnKO6cIQBghM6pq2Fzq8RJt4YaihMaVuriqVigXbJGO5ZktKbbkqPff4dKM7ON4mqliuWjEiyqXfQ2(T0qIQliktKbr7KsMw(df(xtlhgtuMwQ3Qgi(pQeGStKPRbbh1AA5a8M7njJ8rFtlXxdG4xhNWLbqctkHmHc)lsctuGO6MXHP(dK9xgeT2CWOMxfoYBb6GO5ZktKbPbbh1AA5a8M7njJ8rFtlXxdqbfis4WolqGca]] )
 
-    storeDefault( [[Brewmaster: Combo AOE]], 'actionLists', 20161206.1, [[dCdPdaGAcfTEvr5LeQSlvPxlq7tvKMnPUnrTtr2l1UrSFvv)KqWWi43IAOesAWQkdxiheP6yqADQIQfkOLIuwmuwojpuvepvzzq45q1ejKYubPjdy6QCrqCyPEgs66q0gjKQVrK2SQWNfQtl5ReImncj(oHQghHOEmqJgjgpHsNua)fuDncfoprSscHUmQTbkBud1dcPX0mGd9en(rJuFo0l1YSxOIfVCJFS65)FpjlJL))Olcq8OXAUXzNqiGcdfLQWlQ3IyWQ11Z6RYeNqatK9OdEvMGBOoHAOEqinMMbCOxQLzpiInsNbks8)N44ypASMBC2jecOWqL(kq1labOa7lR8izc7rhR01jXJfBKoduKy4b5yVbQQOZZNtimupiKgtZao0l1YSN444)Vj34u8OXAUXzNqiGcdv6RavVaeGcSVSYJKjShDSsxNeVGCmCC5gNI3avv055ZjQgQhesJPzah6LAz27juQ)VqKk8ZJgR5gNDcHakmuPVcu9cqakW(YkpsMWE0XkDDs8aPuWXqQWpVbQQOZZNtIIH6bH0yAgWHEPwM9cvCFu()Yp()e9sXE0yn34StieqHHk9vGQxacqb2xw5rYe2JowPRtIhMI7Jc88d4pkf7nqvfDEamgYhpEdYXWXLBCkViJ85KyyOEqinMMbCO3avv055rJ1CJZoHqafgQ0xbQEbiafyFzLhjtyVulZE0qItPiX)FIydW)FIura8OJv66K4PqItPiXWfZgGHl(Ia4ZjygQhesJPzah6nqvfDEmHvXsEbrQum5EQGhnwZno7ecbuyOsFfO6fGauG9LvEKmH9sTm7bTIz1)NO2Azp6yLUojExfZk4rTw2NtsnupiKgtZao0BGQk688OXAUXzNqiGcdv6RavVaeGcSVSYJKjSxQLzVqDdgmJ8()2PQGShDSsxNepmDdgmJ8GJFQki7ZN3avv055Zga]] )
+    storeDefault( [[SimC Windwalker: serenity]], 'actionLists', 20170110.1, [[d8tDhaGAIQY6vrjVeOYUqjBtrSpIQyMevW6urXSPYRrXnbYHiP42OY5byNQ0Ef7wY(vOrrurdtrnoIk0PL6zKsdwbdhL6GKKtruvDyvDoIk1cjflLszXKy5u1db0tHwgLQNRutKOknvsvtwjth0fvrEmHlJCDvWgjQKVPcTzfjBNO8DsQ(QkQMgqvmpGQ0IiP0FrvJMu5ZuYjbkhJixdOQCpfPwPkk1MaQQ(nfhPOp4P6vC0kAcEFoki2CahhoVRL6VJH8NzCytEQAiGG2ih9Bkx7ZstKMN1geztI(D9z9W2u5AFIChuLa2MAh95kf9bpvVIJwrtqBKJ(nLR9zPjshznRn495OGaFNBCqLa2MACqo0ByqvERDW65OPvl2CahhoVRL6VJH8NzCaO8Q2GQuAxdbeu8oh)lGTP4D9ggeSA1IhA8bltrbbQJemGmYioQGrjiiZ6(Cuq1InhWXHZ7AP(7yi)zghakVQnWCTh9bpvVIJwrtW7ZrbrYtvdbeef(Mnmi0yz5iwcJXTmQx7Ga1rcgqgzehvWOe0g5OFt5AFwAI0rwZAdcwTAXdn(GLPOGQuAxdbeCtEQAiGGGmR7ZrbdmxTrFWt1R4Ov0e8(Cuqe6BgACWm14auhnoCExlNXVcAJC0VPCTplnr6iRzTbvP0Ugci4g6BgI3mfpuhXRExlNXVccwTAXdn(GLPOGa1rcgqgzehvWOeeKzDFokyG5cEI(GNQxXrROjik8nByWxaBzepvextBWR2GQuAxdbe037US43hkEMwWeeSA1IhA8bltrbVphf0wV7YACapuJdGRfmbv5T2bfaeoIh(ElcUNwkOnYr)MY1(S0ePJSM1geiaHJ0)ElcUJMGa1rcgqgzehvWOeeKzDFokyG5c(I(GNQxXrROj495OGYvVH7XbZuJdY1bpGG2ih9Bkx7ZstKoYAwBqvkTRHacovVHBEZu8tDWdiiy1Qfp04dwMIccuhjyazKrCubJsqqM195OGbM7KOp4P6vC0kAcEFokiYURQlRXbG(VOXbW1cMGOW3SHbFbSLr8urCnTLNP1c(vdBpjJ3sSyjXAZURQllEH)lINPfmbbQJemGmYioQGrjOnYr)MY1(S0ePJSM1geSA1IhA8bltrbvP0Ugci4MDxvxw8c)xeptlyccYSUphfmWCpg9bpvVIJwrtqu4B2WGVa2YiEQiUM2YZ0AdQsPDneqqFV7YIFFO4zAbtqWQvlEOXhSmff8(CuqB9UlRXb8qnoaUwWmoiNsYFqvERDqbaHJ4HV3IG7PLcAJC0VPCTplnr6iRzTbbcq4i9V3IG7OjiqDKGbKrgXrfmkbbzw3NJcgyUYXOp4P6vC0kAcEFokiYURQlRXbG(VOXbW1cMXb5us(dIcFZggunS9KmElXILeRn7UQUS4f(ViEMwWeeOosWaYiJ4OcgLG2ih9Bkx7ZstKoYAwBqWQvlEOXhSmffuLs7AiGGB2DvDzXl8Fr8mTGjiiZ6(CuWaZvUJ(GNQxXrROjik8nByq1W2tY4TelwsSuCVGXCaYZ0cMGQuAxdbeuX9cgZbiptlyccwTAXdn(GLPOG3NJcQX9cgZb44a4AbtqvERDqbaHJ4HV3IG7PLcAJC0VPCTplnr6iRzTbbcq4i9V3IG7OjiqDKGbKrgXrfmkbbzw3NJcgyUsZrFWt1R4Ov0e8(CuqBh266YAC4S)fnoCExRGOW3SHbvdBpjJ3sSyjXYFyRRllE57xeV6DTccuhjyazKrCubJsqBKJ(nLR9zPjshznRniy1Qfp04dwMIcQsPDneqq)HTUUS4LVFr8Q31kiiZ6(CuWadmik8nByWata]] )
 
-    storeDefault( [[Brewmaster: Standard ST]], 'actionLists', 20161206.1, [[d0Z7eaGAru16fsQxQiQDjuBdrTpHumBIMVIqhwYZir3wGNdPDQu7LA3qTFvQrjIIHrQgNIipwfdvLqdgcdNuoij1PerLJHKZjKslujwks1Iry5eEOkbpfSmKY6esLjkIKPcrtwHPRQlscNwQlJ66kPnkIOVjeBMKSDHeFxL0xvemnHKmpHu1FfPxRinAf14vj6KIWNf01er48iYkfrQnjIs)wuBkJ0GcCri5HxmKuSQAv(EXWUcydlc(AqH(Si6UraFHhLyCJaqAGol5cL9MMofzkkL6XugGJO1EdguF(oJrnsVPmsdkWfHKhEXWUcydtMdVrabf6Sb6SKlu2BA6uKPIeRR0qc8Op1NfgWzmBaoIw7nyqnrl7NKHPCykAqHo73BAgPbf4IqYdVyaoIw7nmyIvvQINYHPObf6C8Q2eN4GjwvPkgvJpDjthSSJclifVQzGol5cL9MMofzQiX6knKap6t9zHbCgZgut0Y(jzGqW1pNMvLQQfSHDfWgweC9Z3iYQUrKKTG97TsJ0GcCri5HxmahrR9gmqNLCHYEttNImvKyDLgsGh9P(SWaoJzdQjAz)KmqiRZ086NI(IEkByxbSHfzDMMx)BeWl6PSFVJkJ0GcCri5HxmahrR9go5SCKVIJ1wfTksnomLqWxJpZLiKrJ(tolh5R4yTvrRIuJdtje814ZCjcz00G6sdQjAz)Km8Dils1kzGHe4rFQplmGZy2WUcydi7qwCJ4ILmWaDwYfk7nnDkYurI1v637KWinOaxesE4fdWr0AVHVWtBCyYI(vyilIRG8k(JgTvrRIu6ply05SCyqnrl7NKb(snzE04W0PCOHe4rFQplmGZy2WUcydkUutMhno8gXK5qd0zjxOS300PitfjwxPFVjBKguGlcjp8Ib4iAT3Gb6SKlu2BA6uKPIeRR0qc8Op1NfgWzmBqnrl7NKbXk6CJdtt(AWPxB8WWUcyd0xrNBC4nIKUg8nIj04HFVJyKguGlcjp8Ib4iAT3Gb1eTSFsgoZDkXQa9nKap6t9zHbCgZg2vaB4cZ9nILvb6BGol5cL9MMofzQiX6k979KmsdkWfHKhEXaCeT2BWaDwYfk7nnDkYurI1vAibE0N6Zcd4mMnOMOL9tYWzUtVwrHnSRa2WfM7BetOIc737O1inOaxesE4fdWr0AVbd0zjxOS300PitfjwxPHe4rFQplmGZy2GAIw2pjdFhYIuTsgyyxbSbKDilUrCXsgCJizOso)(naA8Plzh113zS30ipj)2a]] )
+    storeDefault( [[SimC Windwalker: ST]], 'actionLists', 20170110.1, [[dq0DraqiiLwKaInrjmkQO6uur6wuru7cvnmi5yKYYOsEMIY0eGY1Gu02GiFds14OIiNtaP1PGkZtaL7rjAFOcoOaTqf4HuHjQGIlcrTrifojQOvkaXlPIWmfGQBIkTtKAOkO0svu9uIPsL6RurzVs)frdwvCyOwmP6XKmzHUmyZiPptPgneoTsRwavVwHMnvDBe2TOFtXWf0XrfA5O8Cv10v56iX2PK(UcY4faNxrwVcQA(cqA)QsxT6UcYjw3dXoOcnMaQilHJ3hNTzCiSFeyd37J4UYCWd4puAxO0qsdfQzvKqqTy)o84BnzPDHuGwjO6wt(R7sRv3vqoX6Ei2bvMdEa)Hs7cLgsAOZJAwfAmbuXb27FFcQU1KVpb89FvcYS)vsmbyzGilHJ3hNTzCiSFeyd37JJHjqQeuF97nvrH9EsS6wts63)vHZmUk8zyvstcvCGauJCnwbciVQxHRjsJjGkbISeoEFC2MXHW(rGnCVpogMaPxPDv3vqoX6Ei2bvOXeqfKtGzVd)M2Vpi73aSSkIITHxfibM9eVIcJb5fyqcm7jEcCaSqHy5vuymiVaZsTkoqaQrUgRabKx1Rmh8a(dL2fknK0qNh1SkCMXvHpdRsAsOsq91V3ufibM9o8BAtc(nalRcxtKgtav6v6z1DfKtSUhIDqfAmbujitHt49XTHXG8Qik2gEvoJTTh4vgJpAgk)w4CfILNahaNScXYROWyqECWsnlGey2t83saKNHKahaoyjkE00PvCGauJCnwbciVQxzo4b8hkTluAiPHopQzv4mJRcFgwL0KqLG6RFVPkyMcNa5zymiVkCnrAmbuPxPdy1DfKtSUhIDqfAmburo2ocVpgQVphc49XzBg9gwSIOyB4vb4iLnmeI8ktAfy2qQasdvsQ4d(wCypKh)hyqU3epKyDpeTqzm(OzOK)dmi3BINbe4n)CWsnuvCGauJCnwbciVQxzo4b8hkTluAiPHopQzv4mJRcFgwL0KqLG6RFVPk)JTJaPHk5HaihAZO3WIv4AI0ycOsVsJM1DfKtSUhIDqfAmburo2ocVpgQVphc49XzBg9gw89X5AoTIOyB4vb4iLnmeI8ktAfy2qQasdvsQ4d(wG2d7H84)adY9M4HeR7Hyfhia1ixJvGaYR6vMdEa)Hs7cLgsAOZJAwfoZ4QWNHvjnjujO(63BQY)y7iqAOsEiaYH2m6nSyfUMinMaQ0R0iv3vqoX6Ei2bvOXeqf5y7i8(yO((CiG3hNTz0ByX3hN7YPvefBdVkOf4iLnmeI8ktAfy2qQasdvsQ4d(vCGauJCnwbciVQxzo4b8hkTluAiPHopQzv4mJRcFgwL0KqLG6RFVPk)JTJaPHk5HaihAZO3WIv4AI0ycOsVsJEDxb5eR7HyhuHgtavqJ9F)3hd13h0GcBQIOyB4vb4iLnmeI8ktAfy2qQasdvsQ4d(wCypKh)hyqU3epKyDpeTqzm(OzOK)dmi3BINbe4n)CWs0SIdeGAKRXkqa5v9kZbpG)qPDHsdjn05rnRcNzCv4ZWQKMeQeuF97nvH6(VpPHkjvkSPkCnrAmbuPxPDs1DfKtSUhIDqfAmbubn2)9FFmuFFqdkSP3hNR50kIITHxfGJu2WqiYRmPvGzdPcinujPIp4BbApShYJ)dmi3BIhsSUhIvCGauJCnwbciVQxzo4b8hkTluAiPHopQzv4mJRcFgwL0KqLG6RFVPku3)9jnujPsHnvHRjsJjGk9kDGw3vqoX6Ei2bvOXeqf0y)3)9Xq99bnOWMEFCUlNwruSn8QGwGJu2WqiYRmPvGzdPcinujPIp4xXbcqnY1yfiG8QEL5GhWFO0UqPHKg68OMvHZmUk8zyvstcvcQV(9MQqD)3N0qLKkf2ufUMinMaQ0R0AOQ7kiNyDpe7GkIITHxf0gYaRK2QiVg)T2aJme7jSasGzpXROWyqEwcjWSN4jWbWcfILxrHXG8cmlNzHofQu5)NHrqcy2HGeNrsQld4PewjO(63BQYT2aJme7jQWzgxf(mSkPjHk0ycOI71gyVpdl2tujiZ(xrnP8a5Hz2W9TuRYCWd4puAxO0qsdDEuZQ4ys5b3yMnC)oOIdeGAKRXkqa5v9kCnrAmbuPxP10Q7kiNyDpe7GkIITHxfGJu2WqiYRmPvGzdPcinujPIp4BXH9qE8FGb5Et8qI19q0cLX4JMHs(pWGCVjEgqG38ZblDvjO(63BQcB)BAt(PKKJRAScNzCv4ZWQKMeQqJjGkZ3)M2VpcL89Xjw1yLGm7Ff1KYdKhMzd33sTkZbpG)qPDHsdjn05rnRIJjLhCJz2W97GkoqaQrUgRabKx1RW1ePXeqLELwZvDxb5eR7HyhuruSn8QaCKYggcrELjTcmBivaPHkjv8bFlq7H9qE8FGb5Et8qI19qSsq91V3uf2(30M8tjjhx1yfoZ4QWNHvjnjuHgtavMV)nTFFek57JtSQX3hNR50kbz2)kQjLhipmZgUVLAvMdEa)Hs7cLgsAOZJAwfhtkp4gZSH73bvCGauJCnwbciVQxHRjsJjGk9kT2S6UcYjw3dXoOIOyB4vbTahPSHHqKxzsRaZgsfqAOssfFWVsq91V3uf2(30M8tjjhx1yfoZ4QWNHvjnjuHgtavMV)nTFFek57JtSQX3hN7YPvcYS)vutkpqEyMnCFl1Qmh8a(dL2fknK0qNh1SkoMuEWnMzd3VdQ4abOg5ASceqEvVcxtKgtav6vATawDxb5eR7HyhuHgtavCgIL530(9zyyyBt((mSusfIkZbpG)qPDHsdjn05rnRsq91V3uLHqSm)M2Krg22KKHusfIkCMXvHpdRsAsOIdeGAKRXkqa5v9kCnrAmbuPxP1qZ6UcYjw3dXoOcnMaQ4GHvJ(nTFFci4i8(eWxBexUPDfrX2WRcWrkByie5peajqecmd7tQWHy1EgMf6uOsL)qaKariWmSpPchIv7zy8)dRg5GLAbAfhia1ixJvGaYR6vMdEa)Hs7cLgsAOZJAwfoZ4QWNHvjnjujO(63BQIIHvJ(nTjdCCei9RnIl30UcxtKgtav6vAnKQ7kiNyDpe7Gk0ycOIeUzUP97JdgoH3hNyvJvefBdVky1TwbsibIf(CWYzwG2qgyL0wf514)HBMBAtQy4eihx1yfhia1ixJvGaYR6vMdEa)Hs7cLgsAOZJAwfoZ4QWNHvjnjujO(63BQYpCZCtBsfdNa54QgRW1ePXeqLELwd96UcYjw3dXoOcnMaQmNYhXM2VpbeCeEFC2MXkIITHxffILNahaNScXYROWyqECqZc0gYaRK2QiVgpJYhXM2KboocKdTzSIdeGAKRXkqa5v9kZbpG)qPDHsdjn05rnRcNzCv4ZWQKMeQeuF97nvHr5JytBYahhbYH2mwHRjsJjGk9kTMtQURGCI19qSdQik2gEvCUcXYROWyqECqlGgq1PqLkVUzKmKzu8ucDQfOnKbwjTvrEnEDpwnAOCKJRASsq91V3ufDpwnAOCKJRAScNzCv4ZWQKMeQqJjGkd8y1OHY9(4eRASsqM9VIAs5bYdZSH7BPwL5GhWFO0UqPHKg68OMvXXKYdUXmB4(Dqfhia1ixJvGaYR6v4AI0ycOsVsRfO1DfKtSUhIDqfAmbuXbI99XzyRqfrX2WRcKaZEI)wcG8mKe4aWblDX7cnR4abOg5ASceqEvVYCWd4puAxO0qsdDEuZQWzgxf(mSkPjHkb1x)EtvuiwYHWwHkCnrAmbuPxPDHQURGCI19qSdQqJjGkoqSVpdOW(xfrX2WRcKaZEI)wcG8mKe4aWblDX7cnR4abOg5ASceqEvVYCWd4puAxO0qsdDEuZQWzgxf(mSkPjHkb1x)EtvuiwsDkS)vHRjsJjGk9kTlT6UcYjw3dXoOIOyB4vbTHmWkPTkYRXFRnWidXEIkb1x)EtvU1gyKHyprfoZ4QWNHvjnjuHgtavCV2a79zyXEI3hNR50kbz2)kQjLhipmZgUVLAvMdEa)Hs7cLgsAOZJAwfhtkp4gZSH73bvCGauJCnwbciVQxHRjsJjGk96vruSn8Q0Rf]] )
 
-    storeDefault( [[Brewmaster: Standard AOE]], 'actionLists', 20161206.1, [[dOtheaGAQe16PIWlPsLDPsTnimBknFQK62czDur0of1Ej7gP9Rs(jvKmmk63a9yadLkbdwfnCQQdsbNIkHogOoSKfkulfrwmuTCbpKkLEQYYaPNJWePsKPcftwKPRQlcL(liUmQRdP2ivuCAP2mvX2vHACuj5RuPQPrfL(UkKNHOETky0qY4PsXjPk9zi6AurLZtHwjvKAuurvFJkSGfgnS0c3YjfRLRiwloWhfvephCYRZ9fnvH01PbNcR2acT)RPrITCrWkd1egbmmzZByT5ZaDzBNO(gKQmueUsZaW3GucHrzyHrdlTWTCsXAdi0(VMMb822Vrn2n(wWutrc5aJuZln1a1dg0OGuwlxrSgw34Bbtnf51P7yKAKylxeSYqnHra742KSELHkmAyPfULtkwBaH2)10iXwUiyLHAcJa2XTjznV0udupyqJcsznd4TTFJAhyKqiIkcuA5kI1ChJ86Crfbk9ktwy0WslClNuS2acT)RLyC0E8CFGrcHiQiqDJ231UoX4O945MWNb6YcjX2(yoy8gTVgj2YfbRmutyeWoUnjR5LMAG6bdAuqkRLRiwloW1J66e0Z1PZ0bwZaEB73OgEGRhfeqpq80bwVYoRWOHLw4woPyTbeA)xtJeB5IGvgQjmcyh3MK18stnq9GbnkiL1YveRfBlGdGO)RZ9H(aRzaVT9Bud3wahar)qi(qFG1RSZjmAyPfULtkwBaH2)10iXwUiyLHAcJa2XTjznV0udupyqJcszTCfXAKqtGQPiVoD6kXxNUVPjnd4TTFJAb0eOAksiUCLyih10KELrimAyPfULtkwBaH2)10mG32(nQbGQHGJoq8AEPPgOEWGgfKYAKylxeSYqnHra742KSwUIyn3IQVoJrhiE9k7qy0WslClNuS2acT)RPrITCrWkd1egbSJBtYAEPPgOEWGgfKYA5kI1ClQ(6091XSMb822VrnaunKJQJz9k7kHrdlTWTCsXAdi0(VMgj2YfbRmutyeWoUnjR5LMAG6bdAuqkRLRiwdtJKdxNUqzJUoDEyxuZaEB73O23i5ae)YgPxVMlXEk02xX6La]] )
+    storeDefault( [[SimC Windwalker: CD]], 'actionLists', 20170110.1, [[d8tNjaWCrTEQeYMGk7sQ2gH0(OsQ8As4WknBknFPe3uK68uKBtWPrStPyVO2TQ2pfAueQgMimovcEmspdkmyky4QuhckQtriogu1XPs0cvjTurulMOwoPEiuQNQyzuPwhvc1eHImvkQjdz6sUOiXxvjKldUor2ivsvFMK2mvSDPuFNenlQemnvIMNiPVbLmwvc1OvX4PsYjfr(lvDnQKs3tkPZrLuCqcLFlmJNnZtk)kBbeFLNMva4zicyB0WfrEKY1Qa0UyJgWgt8KmyHndCJ7e4ffFIeyWZCduYAjUOTiXZnUf11WJy0IeFMnZn4zZ8KYVYwaXx5PzfaEs6BhkaJgUyj4DbJgQdy0WfDify0GzIkO5zOAYDXtfQQwOtJWIcLFMhSpavr6OniaFXY8KmyHndCJ7e4ffpw9eyWtspIq3k088Xd8iMmXskt8q(2HcW7kj45jDGAwbGhU4g3SzEs5xzlG4R80ScapxTrGmAW1lPnXZq1K7INkuvTqNgHffk)mpyFaQI0rBqa(IL5jzWcBg4g3jWlkES6jWGNKEeHUvO55Jh4rmzILuM4r2gbY7iPnXt6a1ScapCXnyWM5jLFLTaIVYtZka8Cf0zqRG8Q8mun5U4Pcvvl0PryrHYpZd2hGQiD0geGVyzEsgSWMbUXDc8IIhREcm4jPhrOBfAE(4bEetMyjLjEKbDg0kiVkpPduZka8Wf3CjBMNu(v2ci(kpPxxreKemVAvOY84MNHQj3fpvOQAHonclku(zCIJ5vxeNLwD11cEzjDU6WVYwaHdCPe5(gq9dbHG3lS5c0zVtOLjie8(kKOhCIFRH2EvkQ7UxHe94dhpc260sl3AOTxLI6y0RqIE8HJhbBDAPLBn02Rsr9l7virp(WXJGToIicpIjtSKYepvirp(WXJGTo8K0Ji0TcnpF8apnRaWJ5qIEmAiCmAatWwhEetRM5HAIAbFTAvOYTI3fewx5PMOwWxRwfQCRU5jzWcBg4g3jWlkES6jWGhSnrTG5vRcvMVYd2hGQiD0geGVyzEshOMva4HlUX1YM5jLFLTaIVYtZka8yoKOhJgchJgWeS1XObXXlcpdvtUlEQqv1cDAewuO8Z4ehZRUiolT6QRf8Ys6C1HFLTachMbxkrUVbu)qqi49cBUaD27eAzccbVVcj6reEW(aufPJ2Ga8flZtYGf2mWnUtGxu8y1tGbpj9icDRqZZhpWJyYelPmXtfs0JpC8iyRdpPduZka8Wf3ikBMNu(v2ci(kpPxxreKemVAvOY84MNHQj3fpvOQAHonclku(zCIV6I4S0QRUwWllPZvh(v2ciCGlLi33aQFiie8EHnxGo7DcTmbHG3xHe9GJgHffk)EU0efGpC81b8kjpYgAuxdcl5ZPEbC0iSOq53Di5k7dhVJK2uxdcl5ZP26L4OryrHYVRjzYR6ZsVxbHQORbHL85uXcN43AOTxLI6U7virp(WXJGToT0YTgA7vPOog9kKOhF44rWwNwA5wdT9Quu)YEfs0JpC8iyRJiIWJyYelPmXtfs0JpC8iyRdpj9icDRqZZhpWtZka8yoKOhJgchJgWeS1XObXDlcpIPvZ8qnrTGVwTku5wX7ccRR8utul4RvRcvUv38KmyHndCJ7e4ffpw9eyWd2MOwW8QvHkZx5b7dqvKoAdcWxSmpPduZka8Wf3GfBMNu(v2ci(kpnRaWJ5qIEmAiCmAatWwhJgehdr4zOAYDXtfQQwOtJWIcLFgN4RUiolT6QRf8Ys6C1HFLTachMR1cF1ZGgEszQd)kBbeomdUuICFdO(HGqW7f2Cb6S3j0YeecEFfs0doAewuO875stua(WXxhWRK8iBOrDniSKpN6fWrJWIcLF3HKRSpC8osAtDniSKpNARxIJgHffk)UMKjVQpl9EfeQIUgewYNtflC0dPtL0A4lxxRUfHhSpavr6OniaFXY8KmyHndCJ7e4ffpw9eyWtspIq3k088Xd8iMmXskt8uHe94dhpc26Wt6a1ScapCXnxGnZtk)kBbeFLNMva4XCirpgneognGjyRJrdIFPi8mun5U4Pcvvl0PryrHYpJt8vxeNLwD11cEzjDU6WVYwaHRwl8vpdA4jLPo8RSfq4Wm4sjY9nG6hccbVxyZfOZENqltqi49virp4OryrHYVNlnrb4dhFDaVsYJSHg11GWs(CQxahnclku(DhsUY(WX7iPn11GWs(CQTEjoAewuO87AsM8Q(S07vqOk6AqyjFovSeHhSpavr6OniaFXY8KmyHndCJ7e4ffpw9eyWtspIq3k088Xd8iMmXskt8uHe94dhpc26Wt6a1ScapCXfpdvtUlE4Iza]] )
 
 
-    storeDefault( [[Windwalker Primary]], 'displays', 20161206.1, [[dStTeaGEIKDHKkBJiAMcfMTGdRQBcqltu62eUMqr7Ku7vA3kz)u(jskdJe)wKZlKgksnyQgochurokrLJHOZruvTqqYsrswSOA5k8qLYtr9yf16eQmrqXub0KfIPd1fvQUkrv5YQCDG2irQpJeBgaBhu9rHs9vHsMgivFxOQrsufpJimAIY4bLoPO4wK0PHCpKu1ZbXAjQsVgKYLSallh4bErmx60cBoJK6QMmBz6bs8JOMlDAHnNrsDvtMTm9aj(ruZ3EcmkTmFcC8LlpUq5TDnWDQklFqoZzIleKo8qK18YmXpJwuQoMLPHVBUQ5WCa8GbCHQmn8DZvnFljYFCZld4dlsakmhisCvlHsz5apWdsbwnzbwEF95HlsHQ80mgLwMhdeeCzgj2mpJGinWXzoX4MtI8hxw)IRmJeBMNrqKg44mNyCZjr(Jlt1fUhYvDwfsjjvuKOmppqe4YyK4OELIRoBbwEF95HlsHQ80mgLwMhdeeCzgj2mpJGinWXzEKdGhmGlRFXvMrInZZiisdCCMh5a4bd4YuDH7HCvNvHussffjkU4Y88arGlxMgoT5QMVLe5pU5LPHtBUQ5WCa8GbCHQC0QvZkPszyRwPmvx4Eix1zviLKKucfQJSSCGh4z(uarzjUfU8C5jqCYCvZb8HfjafvRuMgoT5QMd8huoS5tbczF1KLz0Is4mx1CarlKauuTszQ(fLZ8nz3m0qlkL)CuaHJwEAgJslZ3EcmkTGuOkprTDZvnhWhwKauuTszA47MRAoWFq5WnVmtCHG0HhImZ3sH0Oal)vtwoVAYYuQMS8OAYIlVLiIAoWu5yHwrI)dq7gMprT9Y0WPnx1CG)GYHBEz5apWZCyqJBgJsRYuLj2YdWYWCa8GbCHQSCGh4fX8mZPL5msQRAORuw60cxEhwIXbbs8F0Y7RppCrkuLPhiXpIAEM50YCgj1vn0vktpqIFe18TNaJsRY4Fq5WqkprTDZvnhq0cjafvlrzM4MrFaj1JrPv1zLu(lNzoTGyollf)QAOxg4hUf28ypsGevRuMrlkHZCvZb8Hfjafvtww)IRCSqRiX)bODdZPhiXpIwMg(U5QMd8huoS5tbczF1KLNaXjZvnhq0cjafvRuMg(U5QMVLe5p28PaHSVAYY0WPnx18TKi)XMpfiK9vtwwEtjr1KXSmn8DZvnhMdGhmGnFkqi7RMSmnCAZvnhMdGhmGnFkqi7RMS4wa]] )
+    storeDefault( [[Windwalker Primary]], 'displays', 20170110.1, [[dStXeaGEcYUeuyBqPMPOqZMOdRYnbfphOUTqptuYoj1EL2Ti7NYpbLmmb(TQ68cYqrXGPA4e6GkLJsqDmu6CckzHaYsjGflQwUsEOQ4PilJeTorPMiu0ubYKbvthvxuv6QcQ4YkUoiBKaDAiBgqTDOYhfu1xHctduQVRuzKck6XamAsy8qjNuu0TiPRjk4Eck1NHQwRGk9ALQUSfujHHgObU5c(tCZjKqt1SklXGJXCvZbDl8dV5LywO4Tcz(ZjYr)K5BqRRuP1il98Qb9kqPWb8yojosPGYdSIMxIb3R5QMd6w4hEZlXG71CvZXCa(GK8cujgCVMRA(ZpMF8MxcMdluekAoiuCQoRGsH7)hRMndLyWXyUQ5yoaFqsU5Bsrfx1SLyWXyUQ5p)y(XBEjgCmMRAoMdWhKKxGkfQAvLyhuAdwVMRAomhwOiuS6GscmY5apvRmGfBwLbyhgSLe4s4hZFuma2Js4lD5ijIhQedUxZvn)5hZpU5Bsrfx1SLyWXyUQ5GUf(HB(MuuXvnBjgCmMRA(ZpMFCZ3KIkUQzljm0anMVjr4tXjXlbO0gao6Nm)5e5OFcCbQewvhuIepaOe(QZqjsCKsbLhyfM)8L)vbv6QMTuE1SLWxnBPv1SLx65lgYCq)syGsW3DY9ZY8ny9wIzHI3kK5c(tCZjKqt1Skljm0anMJjAna4OFQKazg(WeujmhGpijVavsyObAGBEMa(jZjKqt1WoOKG)eV0lwIRbm4DxOsVPlxoWlqLywO4TczEMa(jZjKqt1WoOeZcfVviZForo6NkXVf(HdU0gSEnx1CyqjuekwDwLiXba6KiHoo6NQwj2HvPmb8tGnNu83LQg2LaDYjXnp8RpKy1bLiucVCmx1CyoSqrOy1SL0xCkHbkbF3j3plZzwO4TcvIb3R5QMd6w4hU5Bsrfx1SL2G4FZvnhgucfHIvhuAdI)nx1CyoSqrOy1bLiucVCmx1CyqjuekwDqjHHgObCbvnBbv6nD5YbEbQ0gao6NmpJiW8sek(yogOe8DNC)SY2CX1a4hZpEj9fNsek(yogOe8DNC)SY2CX1a4hZpEjbg5CGNQvgWInBqqwLialKiVehfNWoO8QvwqLEtxUCGxGkTbGJ(jZZicmVeHIpMJbkbF3j3pRSnh(a8bj5L0xCkrO4J5yGsW3DY9ZkBZHpaFqsEjbg5CGNQvgWInBqqwLxEjgCVMRAoMdWhKKB(MuuXvnBjcWcjYlvEl]] )
 
-    storeDefault( [[Windwalker AOE]], 'displays', 20161206.1, [[d0tYeaGEcLDrQIETQkDyGzkQOVjQuZwWJvvUji68kWTj50i2Pq7vA3kz)u(POkdJu(TiJJufgkbdMQHJKdkkhLq1XqQZjQWcbHLcjwSISCv5HkLNIAzkupxPAIeIPcstMuz6qDrf1vjvjpJO66GAJqsFgcBwHSDi1hfvYxjvvtJq67QQyKKQuRtuvJMOmEiYjvq3IixdI6EKQsxwL1sQk2MQQU0fAzXHp4tN5OMwyZzIyxJ0JllGwWCjZHcEioCNkl8ikWBG5BakmjTmpd(bkx(DHYBZrOZOuwV2pZzQleqna2L1PYcONnxYCOGhId3PYcONnxYCrUra4aUquwa9S5sMVLutaCNkdjajIcwzouI6AuUwzXHp4BVqBKUqlpVatHtxHOC2hMKwMNtYoUmtuBMpurLE48nN6DFj1eaxocuxzMO2mFOIk9W5Bo17(sQjaUmkx4a7xJJ1O)tRPjVm)9iu4YyI60xTIBCCHwEEbMcNUcr5SpmjTmpNKDCzMO2mFOIk9W5BUUBeaoGlhbQRmtuBMpurLE48nx3ncahWLr5chy)ACSg9FAnn5fxCz(7rOWL3jleHRSaAbZLmFlPMa4ovwaTG5sMlYncahWfIYdkQs5g5)I(xUEKJXilh5CR9xRJKef5Yi1OwzuUWb2VghRr)NMwUMEsxwC4d(mplqqSu3cx(RCgmozUK5qcqIOGvnQvw4ruG3aZh(LwMZeXUgfvRmtwicN5sMdjzruWQgLxwaTG5sMlYncahWMNfOKbAKUSa6zZLmxKBeaoGnplqjd0iDzb0cMlz(wsnbWMNfOKbAKUSa6zZLmFlPMayZZcuYansxMPUqa1ayxM5BPq6vOLbnsx(1iDzensxEQr6IlVLOgyo0uz9tw6(be(9EMNL3CzrUra4aUquwC4d(mxeY7(WK0QmkdZLEdTCgmozUK5qswefSQr5Lfh(GpDMp8lTmNjIDnkQwzb0ZMlzouWdXHnplqjd0iD55fykC6keLfqlyUK5qbpeh28SaLmqJ0LzYcr4mxYCibiruWQg1kNL3S5sMdjzruWQgLxgkiClS556LGPAuR8WV0A3Cww6NvJIwolVzZLmhsasefSQrTYcpIc8gy(gGctsRYyWdXH3ll8ikWBG5OMwyZzIyxJ0JlJAAHlpJe1723)bmOCeOUY6NS09di879mplV5Ym19rabIyamjTAC8)CuMPaFKfIgrUS(KsQgPrUC2hMKwMVbOWK0AVqugfWcXz(MS77xYcrzWejqWdkUfa]] )
+    storeDefault( [[Windwalker AOE]], 'displays', 20170110.1, [[d0t2eaGEuQ2fuLSnLOdRQzkkXTfz2KCnq0nbjNxP4BIs55QKDkyVs7wO9t5Nqvmms14GQuptj1qjyWunCICqr1rjLCmcDorPAHGulfQQfRuTCGEOk1trwMOyDkbtefzQqXKHkthvxufUkPu6YkUoO2ik0NHsBwP02rjFuusFff10qP8DLKrskvESkA0KIXJcoPsOBruNgY9iLIFdyTKsvVgeUIftjTGh4bN5mce5Mti2NgeZusGLG5YMJ5bXo8UxsaeLEWnMF)sCeq08CyWVujWrv6(iG5a)sA71yojnkfJQ)st3lrs)jkITbiljW6WCzZzA2(WkEHUKaRdZLn)giT)8UxcQNbucozoguAAyTEjThai1GiKLeyjyUS5mnBFyf38CLKMVbXscSemx28BG0(Z7EjbwcMlBotZ2hwXl0L2ugLZgKlzB5A8o7zGCnKzthYLDRmBqwIHg0lH)OM)AAiJU4sXm6lXlXs4)rSJ53AMtiqrSL(DKcX3usG1H5YMFdK2FU55kjnFdILearPhCJ5lEcenNqSpnWMEjbwcMlB(nqA)5MNRK08niwkhMdyUS5qHIOeCQH1LeyDyUS5mnBFyf38CLKMVbXs0jisIx6cfXQMsekIvnMlBouOikbNAyDjsAukgv)LgZVbuaGftPVbXsGniwcBdIL2BqS8sK0CIEfI9NJaInKzz2lLdZbmx2COEgqj4ud6L0cEGhZzcboNCeqSe(lMvTdtjMMTpSIxOlPf8ap4mFXtGO5eI9Pb20ljW6WCzZX8GyhU55kjnFdILoI)UAWvOljWsWCzZX8GyhU55kjnFdILiueRAmx2COEgqj4ud6LYXZH5YMdfkIsWPgwxcZRMi38Sccal1GEPfpbIxMtAawfBGTs545WCzZH6zaLGtnOxsaeLEWnMF)sCeqSe)bXo8RscGO0dUXCgbICZje7tdIzkXiqKx6GbjW56A1VPu4ttjMrrCREfedO5545O0nG0gZXauIzue3QxbXaAEoEokjW6WCzZX8GyhE3lPf8apxftdIftPJ4VRgCf6s5NCeq08SGU4Liu62CMrrCREfed4cMlboNaP9Nxk8PPeHs3MZmkIB1RGyaxWCjW5eiT)8s4pQ5VMgYOlUuuxFDj6eejXlXrPrB0lVHmftPJ4VRgCf6s5NCeq08SGU4Liu62CMrrCREfed4cMJB2(WkEPWNMsekDBoZOiUvVcIbCbZXnBFyfVe(JA(RPHm6Ilf11xxE5LYp5iGO53VehbeVk0L0cEGhZZviSX0e5LolVf]] )
 
-    storeDefault( [[Brewmaster Primary]], 'displays', 20161206.1, [[dKJqeaGEiv7IkHTrL0mbQQztv3eOCBroSk7KO9kTBv1(P8tQunmr1VvyDIIAOGAWKgovCqH6OOchdINbPSqczPOsTyvXYf8qi5PiltiEoatuinvGmzrHPd1fvLUkQQ4YkDDfTrurFgK2SO02b0hff50OmnQe9DuvgjQQYJbXOrvgpQKtsLYTi4AavopHACOQQwlQQ0RbQYfPGk5oWn4pX9PehZDUzykNJp2uIH(wjsKsWaHnvWuqxa6I7tj4alDbXMI6CWSX304z4kvkS(sOELGE5Ue)aynLCwVNt)bGxFkbd81ubtbDbOlUpLGb(AQGPr3S30JROsWaFnvWuuJ0ZH7tjWoUyPzYuqS0wjA5L43Xivjc4krqcmhCPsWaHnvWuuJ0ZH7tjyGWMkyA0n7n94kQK4kfI4AEPy3FnvWuWoUyPzQY8sCV(9aSvgjhXvee0YDbsjUVp01uu8wiGh7dT09W8mS4sXt8Wubtb74ILMPkZlbhyPli2u3Gm(Msm03kDzEjI9H6xtfmfm2NLMPkZlbde2ubtJUzVPhBAS3H3vjsjyGVMkyA0n7n9ytJ9o8Ukrkbde2ubtrnsph20yVdVRsKsWaHnvWuqxa6Inn27W7QePe5SEpN(daptrn8Jqbv6QePuOsKsqReP0tLifxICwiSZZq)WSXVYiUY)LGb(AQGPOgPNdBAS3H3vjsjoM7CnnklSqWSXVe3ULj(duP4jEyQGPGX(S0mvzEjoM7CZWu3Gm(Msm03kDzEjyGVMkykOlaDXMg7D4DvIu69Fp(nJkQeX(q9RPcMc2XflntvIuc053p20mfgtNkZlf7(RPcMcg7ZsZuLOvYniJpatjEd((vIwjoM7CbuqvIuqLE)3JFZOIkfdbZgFtbFgaCjrHLV0baVHmBA0n7n94sYlTLIUzVPhxI71VhGTYi5iUIKNJwjcsG5GlvCXLGdS0feBkQZbZg)s4laDXakbhyPli2uohFSPed9TsKiLKxAljkS8Loa4nykCGLUG4sCo(4sXb25nvEHWGVsr3S30JROsOgoInf0OKOWYx6aG3GPXU)wICoiSp0kbxjUQmsexaUsXqWSX3uuNdMn(aQOsCm35AASNb9N2pUeKIBb]] )
+    storeDefault( [[Brewmaster Primary]], 'displays', 20170110.1, [[dOZueaGEuKDriX2ekZKqsZMQUPc1Hv52IACIu2jv2R0UbSFk)ui1WuWVv01ajnuinysdNOoOiokkQJbXLvAHePLsiwSQYYf8qu4PilJiEoiMOizQa1KfIMouxuv1vjKYZuixxv2ii13ecTzHQTdKpksLpdktdK47OKgPiv9yq1OrPgpkXjfsUfbNgvNNqTocPATcbETqqxKcUu0G2G)e3Vsm)23gPPqpbWMsCM26qKucfeQPcMc(cWwC)kHg45li2ugNmMpbmn5fUsLcRVeJFh4FrkjAqwtj517H2Fqy3VsK8bNdaRoOwcf0VPcMMAJFppUslHc63ubtzmZFhUFLgFSWZVSPG55TUrdLIG5mxhculHcc1ubttTXVNhBAIxM9vhsjuqOMkykJz(7W9Rekiutfmn1g)EECLwsCDcsInuILcDSrJgHKweHkIK0InelIsACbOKwjrw)Eq26KmGedrYqmrbPeZV9TMM45WaYlaUe8sOG(nvWugZ83HnnXlZ(QdPekiutfmf8fGTytt8YSV6qkHcc1ubtzmZFh20eVm7RoKse8axgxQekOFtfmn1g)EESPjEz2xDiLioam)AQGPJ5a88lx3qj0apFbXMgf8jGPeNPToOmuIKxVhA)bHTPmM(zOGlD1Hukuhsjy1Hu6RoKIlXykl2uWZssdlR5dcEdMMe9FPKhEAQGPJpw45xUUHsm)23AAkEyHJ5tGsIev6sp4sjp80ubthZb45xUUHsm)23gPPrbFcykXzARdkdLqb9BQGPGVaSfBAIxM9vhsPFG7ZVrwPLioam)AQGPJpw45xUoKsGp)cGnnDH5tUUHsjr)BQGPJ5a88lx3OsrbFcaXuI9KvG6gvI53(wifCDifCPFG7ZVrwPLsGJ5tatfvoeCjPHL18bbVbr30uB875XLCxElLAJFppUKiRFpiBDsgqIHmmmQebpWLXLkU4sObE(cInLXjJ5tGs4laBXqkHg45li2uONaytjotBDisk5U8wsAyznFqWBWu0apFbXLGEcGlLe4N3u3fctwlLAJFppUslrYlC(55mDy(eOojXsRekOFtfmf8fGT4(vkj6FtfmD8Xcp)Y1nukboMpbmLXjJ5taivAjroayRPmyVWJqoaSs3h3ZXIlUfa]] )
 
-    storeDefault( [[Brewmaster AOE]], 'displays', 20161206.1, [[dSJveaGEus7sqY2uv1mvc1Sj5Wa3uj65kLBlQNre7Ku7vA3QY(P6NOedtv53Q4XGQHcPbtz4cCqI6OekhdfNtqWcjslfLQfRKwUipeIEkYYeQwhHknrHYubXKvcMouxuP6QeQ4YkUUkTri40OAZcX2bLpQeYNbPPjO67OugPGqFtq0OjKXdHoPGYTi4AQQCEH04eKATeQQxtOkxMcPelWMKceTRLe7o3zb3q48WUrCwNQzIxcnXZGuu3q48WUrCwNQzIxcnXZGuu3qccW8ZZn5BcuQuAuLqURHSZEjXzBCJcgLcbfytuxlHcB3nb3GasqhCxlHcB3nb3InraxfUslHcB3nb3qEYRaCxlTeGipFZUbHNNQL8vs8pNC1m)kHcd1nb3Inraxf2nzvGiq1mLqHH6MGBip5vaURLqHH6MGBXMiGRcxPLIweec5V)H)xsOdH4)K8lKF))AeHW)vsMLD3eCBjarE(MR(Re7JAaBt1X)y(ZWi5lumLe7o3Xnzfh6lppCj4LqHT7MGBip5va2nzvGiq1mLqHH6MGBqajOd2nzvGiq1mLqHH6MGBip5va2nzvGiq1mLyh8GoUHu0ax84pOLaRCfhhTKmCm)8CdjiaZpVTkTeIvhpEO(vIcaW5pOv)RefmkfckWMi3qEuNuHucuntP1QzkbTAMsPQzkUefmW5afNvaMFEvh)FOlH8ee1niNsstdBzWgEsUjZYEjXUZDClgpnWX8ZRe7HTOqesjnipLKMg2YGn8KCtML9sIDN7SGBHb)8CJ4Sovh(xjeopCj5ehOCtdsPdBL2FGv1SqLwcfgQBcUbbKGo4UwcnXZGuu3qccW8ZRegKGo4TsYSS7MGBl5pE(MRwsjXUZD2kKQzkKs7pWQAwOsljdhZpp3wmFdxsAAyld2WtsCDl2ebCv4sAqEkfBIaUkCj2h1a2MQJ)X8N57tsjcEIhGlvCXLcd(5T5gj6W2RAjLGauZd72IsNBq1FLi(dQACtWTLae55BU6VsYx8Xnb3wYF88nxTKsOW2DtWniGe0b7MSkqeOAMsXMiGRcxPLKV4JBcUTeGipFZv)vcnXZGuu3cd(55gXzDQo8Vse)bvnUj42s(JNV5QLucf2UBcUfBIaUkSBYQarGQzkrWt8aCPn(dQAkUf]] )
+    storeDefault( [[Brewmaster AOE]], 'displays', 20170110.1, [[dSZzeaGEIWUarzBeLzcIQztQddCtq41cICBfUMiANcTxPDRs7NYpHQAyQWVvLNbvgkugmvdNKoOahfPYXG05eeSqs0srQAXkYYf1dHONIAzKW6eeAIIKPcQMSGY0rCrf1vfK0Lv66QQnksnoKsBMOA7GYhfK6ZG00iI(osXifK4Xqy0ePXdv5KcQUfsonHZlcpxfTwbr9nqKlAHxgFyBwds0PY093)gM5PFxI5SqITrufLXYIbiNW80VlXCwiX2iQIYyzXaKtyosGkr8UMh8ZGYLZRUmY5i8z6lhQNR5S6Q1P1GtPDQmRcqiUqBmzzmyZMtzEQvo4RjvzzmyZMtzoY3ycq6uzia4jg)H5WfJTrChLd53B0iAYYmISqLu(uCHQ3YyWWmNYCKVXeG0PYyWWmNY8uRCWxtQYYjAAkiLuMKYWrBiOijUKq6iPSkNsYKLXRPLHdhouAHusuf0k7qgKuu5ussBz6x9co3gvCGkdvXHmidTm9Gl01CKsxeHK4cTmysOfKeLd(KN5uMdbapX4pA8Omwwma5eMhoI31CwiX2OKhLzXfQEnNYCiexX4pAexz6(7FnpqlGEh7Lugr5aeeX7AosGkr8UNvz5a8NnNYCia4jg)rJhLXGnBoL5WbzOlPtLz1vRtRbNsnh5t)YfEzqJOLNAeTm0grlNBeTKYiFQjmh(RSY8sZaCs2S5b4pxMvxecGwibGiE3gviJ2Y093)AEkrErqeVBz6dp0Hc8YrWylRmV0maNKnBEa(ZLP7V)nmZdhX7AolKyBuYJYPFxs5GSaOnpcY5hnLNVGj9gwvwgdgM5uMdhKHUKovgllgGCcZrcujI3TmbKHUKZYb4pBoL5qiUIXF0iUY093)Ew4nIw4LNVGj9gwvwoabr8UMd5ItszL5LMb4KS5q08uRCWxtkhbJTCQvo4RjLPF1l4CBuXbQm0JdCLzezHkPCjLuoCeV7P5S0hn3gXvgoqVxI5Ho)(QnEuMfxO61CkZHaGNy8hnEuo4tEMtzoeIRy8hnIRmgSzZPmhoidDjMhOvLcAeTCQvo4RjvzzmyZMtzoY3ycqmpqRkf0iAzmyyMtzoCqg6smpqRkf0iAzmyyMtzoY3ycqmpqRkf0iAzmyZMtzEQvo4RjMhOvLcAeTmgmmZPmp1kh81eZd0QsbnIwsla]] )
 
-    storeDefault( [[Brewmaster Defensives]], 'displays', 20161206.1, [[dGtmeaGEOQ2LqkBdQ0mfs1SfCtLWTv0ojAVs7wH9t6NQuAyQKFd4WQAOqzWugov1bfQJsqogOwhbvwivQLcvSyL0YvQhIIEkYYeINtftKqnvGAYOqthvxeixLGsxw01vXgrbxtLIntiBNQ8rQe9mvQ(mi9DHKrsqvpgeJMaJhQYjPs6wO0PHCELOXrLqRLGIxtLGlCbx6wVCh(LDTKqN8KmQgdadUAec)Ss4iLW2O5VxQgdadUAec)Ss4iLW2O5VxQgZ3NJagQfF2FPs7muIjijyq4usyDs1i)meyi8oc6AjY)HGgqR8MsyEGuJvnXPO)e41DjmpqQXQgtG56Z7APfpEO5zQgy0mR8(vjHbayw59RsyEyQXQM4u0FcC1Id(c(kHlH5HPgRAmbMRpVRLW8WuJvnXPO)e41DPLvYgb3Rs4vjlUrI2nLWjd57Kvg5cgxy47xrdUKqN8KQfhqqhZCWlbPeMhi1yvJjWC95Qfh8f8vcxcZdtnw1a)BOjxT4GVGVs4syEyQXQgtG56Zvlo4l4ReUu8TGuJvTfpEO5zw5vPyiCeWqnMVphbmCQ7syEGuJvnW)gAY7AjYpdbgcVJa1ycea2fCPVs4sRvcxcALWL2vcxEjYpHG(ac)NJagvgbxxSeo)aAQgtbjexanGw6xrbeFzjHo5jvtmANq4iGrjCC1Lcp4syEyQXQg4Fdn5DTKqN8KmQMRqagQri8ZkJCtj5pZsU3zuZ3HNB1eNIYHdYlDkbA8RHKX6UedadEP4n6dQj)9giQsyB083lvJ57ZraJsmMI(tGxk(wqQXQ2c0anpZkVxsOtEsNcUs4cUeOXVgsgR7sXq4iGHArh5Wl5ENrnFhEUfo1eNIYHdYlDkj)zwsCkkhoiV0PeoziFNSYixW4cFDDVebzJ85LkV8sUcby4OgjaiQrLWLa)HCWvZLBGJFLxLi0aAivJvTfpEO5zwjCP4dhqnw1wGgO5zw5vjmpqQXQg4Fdn5Qfh8f8vcxsCk6pbEDxk(WbuJvTfpEO5zw5vjSnA(7LQ5keGHAec)SY7xLi0aAivJvTfObAEMvEvcZdKASQjof9NaxT4GVGVs4seKnYNxQ8wa]] )
+    storeDefault( [[Brewmaster Defensives]], 'displays', 20170110.1, [[dSJqeaGEeLDrkW2akZKuqZwOdRQBQu63aUTsEgq1ojzVs7wu7NQFIimmbghq0RrezOqAWugUGoOiDuevhdIZrk1cjvTuKOfRuTCv8qK0trTmIyDKc1ejstfKMmsy6eUiiUkPiUSIRRsBeiDAO2ms12fXhjf1NbvtJuK(oPsJKuipgugnsz8isNKuXTq4AKsoVsXZjQ1IiQVbeUifAzsKmN4VP7Lj)o3Hc3afilCJXKnvHiPmAcQBeUb9pWhr3lJEWR)SXnQFOadKDl9E(YLptSmvikOqOSSMipUXHtmcA8LP19YOjqCJWnO)b(i6Ez0eiUr4M0H(FJIQVmAce3iCJkWA)fDV82Nu86UCdkEnvbEqzsgayvf4bLzyhCOOCz0eu3iCJkWA)fDVmAcQBeUjDO)3OO6lVPkcjGfuoLeqCJWTTpP41DvvqzkN48YtvscqadrsayAaszYVZDClnIHNxtwugw50RaWnc32(KIx3vvbLrp41F24MoWaYUXyYMQapOmJZWJJBeUTfNXR7QQGYKwqjaji0gSaTbxlT0oaeGuBejLoHMcIYPWeyGSBu)qbgilx9LP8ZWh3OsBGrs4m8Y)ooIfBkZHtmcA8LP5gvGiWPql)vHuEVkKYWRcP8PkKkkZHdm8hXK9cmqUkjGbYYC4ddNHxLwLj)o3XnP4ZatGbYLPuhnRrqlJEWR)SXnqbYc3ymztviskt(DUdfUPdmGSBmMSPkjAvw9RPS(ZO76LfZXnPd9jlJtg5YqY)ECOO6ldkqwuo9G)OBQ)Ca0Tm6bV(Zg3O(HcmqUmfd9)gfLtjbe3iCBloJx3vvGxM87Ch5cTkKcTmK8VhhkQ(YPWeyGSBAiwwuw)z0D9YI5OXUjDOpzzCYixw9RPS0H(KLXjJCzkN48Ytvscqadjia8YmSdouuUIkkRdmGSSBmnaDZvHug6hNSWnnFaUHvfuMXz4XXnc32(KIx3vviLtVca3iCBloJx3vvbLrtG4gHBq)d8r4wAmK2xfszPd9)gfvFz0eiUr4gvG1(lClngs7RcPmAcQBeUb9pWhHBPXqAFviLrtqDJWnQaR9x4wAmK2xfsz0eiUr4M0H(FJc3sJH0(QqkJMG6gHBsh6)nkClngs7RcPIw]] )
 
 
     Commit( 'initializeClassModule', MonkInit )
