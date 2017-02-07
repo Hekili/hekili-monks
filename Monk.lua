@@ -36,6 +36,7 @@ local registerInterrupt = Retrieve( 'registerInterrupt' )
 
 local removeResource = Retrieve( 'removeResource' )
 
+local setArtifact = Retrieve( 'setArtifact' )
 local setClass = Retrieve( 'setClass' )
 local setPotion = Retrieve( 'setPotion' )
 local setRole = Retrieve( 'setRole' )
@@ -156,6 +157,9 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addGearSet( 'class', 139731, 139732, 139733, 139734, 139735, 139736, 139737, 139738 )
         addGearSet( 'fists_of_the_heavens', 128940 )
         addGearSet( 'fu_zan_the_wanderers_companion', 128938 )
+
+        setArtifact( 'fists_of_the_heavens' )
+        setArtifact( 'fu_zan_the_wanderers_companion' )
 
         addGearSet( 'cenedril_reflector_of_hatred', 137019 )
         addGearSet( 'cinidaria_the_symbiote', 133976 )
@@ -784,7 +788,8 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 0,
             gcdType = 'melee',
             cooldown = 8,
-            cycle = 'keg_smash'
+            cycle = 'keg_smash',
+            velocity = 30
         } )
 
         modifyAbility( 'keg_smash', 'cooldown', function( x )
@@ -1126,24 +1131,17 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
 
         addAbility( 'tiger_palm', {
             id = 100780,
-            spend = 50,
-            spend_type = 'energy',
+            spend = function( no_padding )
+                if not spec.brewmaster then return 50, 'energy' end
+                if no_padding then return 25, 'energy' end
+                return settings.tp_energy, 'energy'
+            end,
             cast = 0,
             gcdType = 'melee',
             ready = 50,
             cooldown = 0,
             cycle = 'mark_of_the_crane'
         } )
-
-        modifyAbility( 'tiger_palm', 'spend', function( x )
-            return spec.brewmaster and 25 or 50
-        end )
-
-        modifyAbility( 'tiger_palm', 'ready', function( x )
-            if spec.brewmaster then return settings.tp_energy or 25 end
-            return x
-        end )
-
 
         addHandler( 'tiger_palm', function ()
             if talent.eye_of_the_tiger.enabled then
