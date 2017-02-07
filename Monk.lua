@@ -629,6 +629,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 1.5,
             gcdType = 'spell',
             cooldown = 0,
+            velocity = 60
         } )
 
 
@@ -1038,6 +1039,8 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addHandler( 'spear_hand_strike', function ()
             interrupt()
         end )
+
+        registerInterrupt( 'spear_hand_strike' )
 
 
         addAbility( 'spinning_crane_kick', {
