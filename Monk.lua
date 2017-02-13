@@ -355,6 +355,18 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addToggle( 'use_defensives', true, "Brewmaster: Use Defensives",
             "Set a keybinding to toggle your defensive abilities on/off in your priority lists." )
 
+        addSetting( 'elixir_energy', 20, {
+            name = "Windwalker: Energizing Elixir Energy Deficit",
+            type = "range",
+            min = 0,
+            max = 100,
+            step = 1,
+            desc = "Specify the amount of |cFFFF0000missing|r energy that must be missing before Energizing Elixir will be used.  The default is |cFFFFD10020|r.  If set to zero, Energizing Elixir " ..
+                "can be used regardless of how much energy you have.",
+            width = "full"
+        } )
+
+
         addSetting( 'purify_light', 60, {
             name = "Brewmaster: Light Stagger Purify Threshold",
             type = "range",
@@ -436,6 +448,10 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         addMetaFunction( 'state', 'use_defensives', function()
             if not state.spec.brewmaster then return false end
             return state.toggle.use_defensives
+        end )
+
+        addMetaFunction( 'state', 'ee_maximum', function()
+            return state.energy.max * ( 100 - state.settings.elixir_energy ) / 100
         end )
 
 
@@ -644,7 +660,8 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 0,
             gcdType = 'off',
             cooldown = 60,
-            known = function () return talent.energizing_elixir.enabled end
+            known = function () return talent.energizing_elixir.enabled end,
+            usable = function () return energy.current < ee_maximum end,
         } )
 
         addHandler( 'energizing_elixir', function ()
