@@ -190,6 +190,8 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             end
             rawset( state.healing_sphere, 'count', nil )
             state.stagger.amount = nil
+            state.spinning_crane_kick.count = nil
+            state.healing_sphere.count = nil
         end )
 
         addHook( 'spend', function( amt, resource )
@@ -206,14 +208,16 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
         state.spinning_crane_kick = setmetatable( {}, {
             __index = function( t, k, v )
                 if k == 'count' then
-                    return state.active_dot.mark_of_the_crane
+                    t[ k ] = max( GetSpellCount( state.action.spinning_crane_kick.id ), state.active_dot.mark_of_the_crane )
+                    return t[ k ]
                 end
             end } )
 
         state.healing_sphere = setmetatable( {}, {
             __index = function( t, k, v )
                 if k == 'count' then
-                    return GetSpellCount( state.action.expel_harm.id )
+                    t[ k ] = GetSpellCount( state.action.expel_harm.id )
+                    return t[ k ]
                 end
             end } )
 
