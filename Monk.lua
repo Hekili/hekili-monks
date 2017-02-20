@@ -1155,17 +1155,24 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
 
         addAbility( 'tiger_palm', {
             id = 100780,
-            spend = function( no_padding )
-                if not spec.brewmaster then return 50, 'energy' end
-                if no_padding then return 25, 'energy' end
-                return settings.tp_energy, 'energy'
-            end,
+            spend = 25,
+            spend_type = 'energy',
+            ready = 50,
             cast = 0,
             gcdType = 'melee',
-            ready = 50,
             cooldown = 0,
             cycle = 'mark_of_the_crane'
         } )
+
+        modifyAbility( 'tiger_palm', 'ready', function( x )
+            if spec.brewmaster then return settings.tp_energy end
+            return 25
+        end )
+
+        modifyAbility( 'tiger_palm', 'spend', function( x )
+            if spec.brewmaster then return 50 end
+            return x
+        end)
 
         addHandler( 'tiger_palm', function ()
             if talent.eye_of_the_tiger.enabled then
