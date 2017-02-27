@@ -1155,7 +1155,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
 
         addAbility( 'tiger_palm', {
             id = 100780,
-            spend = 25,
+            spend = 50,
             spend_type = 'energy',
             ready = 50,
             cast = 0,
@@ -1166,11 +1166,11 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
 
         modifyAbility( 'tiger_palm', 'ready', function( x )
             if spec.brewmaster then return settings.tp_energy end
-            return 25
+            return 50
         end )
 
         modifyAbility( 'tiger_palm', 'spend', function( x )
-            if spec.brewmaster then return 50 end
+            if spec.brewmaster then return 25 end
             return x
         end)
 
