@@ -586,7 +586,7 @@ if select( 2, UnitClass( 'player' ) ) == 'MONK' then
             cast = 0,
             gcdType = 'spell',
             cooldown = 15,
-            known = function () return PTR or talent.chi_wave.enabled end
+            known = function () return talent.chi_wave.enabled end
         } )
 
         addHandler( 'chi_wave', function ()
